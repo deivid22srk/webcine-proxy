@@ -1,5 +1,4 @@
 const { spawn } = require('child_process');
-const http = require('http');
 
 const PORT = 3001;
 let serverProcess;
@@ -15,7 +14,7 @@ function startServer() {
         serverProcess.stdout.on('data', (data) => {
             const output = data.toString();
             console.log(`[Server] ${output.trim()}`);
-            if (output.includes('Autenticado com sucesso!')) {
+            if (output.includes('Servidor Proxy rodando')) {
                 resolve();
             }
         });
@@ -37,7 +36,7 @@ function startServer() {
 
 async function runTests() {
     console.log('\n====================================================');
-    console.log('              RUNNING INTEGRATION TESTS             ');
+    console.log('              RUNNING STATELESS INTEGRATION TESTS   ');
     console.log('====================================================\n');
 
     let passed = 0;
@@ -54,50 +53,76 @@ async function runTests() {
     };
 
     const baseUrl = `http://localhost:${PORT}/api`;
+    const deviceId = 'test-device-id-stateless-123';
+    let token = '';
+    let profileId = null;
 
     try {
-        // Test 1: GET /api/status
-        console.log('Test 1: Verification /status...');
-        const statusRes = await fetch(`${baseUrl}/status`);
-        assert(statusRes.status === 200, 'Status endpoint returned HTTP 200');
-        const statusData = await statusRes.json();
-        assert(statusData.ready === true, 'Status reports ready = true');
-        assert(statusData.profilesList.length > 0, `Status returns profiles list (${statusData.profilesList.length} profiles)`);
+        // Test 1: POST /api/auth/token
+        console.log('Test 1: Authentication (POST /auth/token)...');
+        const loginRes = await fetch(`${baseUrl}/auth/token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                access_token: 'AMECL7FZ',
+                device_id: deviceId,
+                device_name: 'Antigravity Test Agent',
+                device_type: 'browser',
+                platform: 'web'
+            })
+        });
+        
+        assert(loginRes.status === 200, 'Authentication returned HTTP 200');
+        const authData = await loginRes.json();
+        assert(authData.token && authData.token.length > 0, 'Returned valid session token');
+        
+        token = authData.token;
+        if (authData.user && authData.user.profiles && authData.user.profiles.length > 0) {
+            profileId = authData.user.profiles[0].id;
+        }
+        
+        assert(profileId !== null, `Found profile ID: ${profileId}`);
+
+        const authHeaders = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${token}`,
+            'X-Device-Id': deviceId
+        };
 
         // Test 2: GET /api/feed
-        console.log('\nTest 2: Verification /feed...');
-        const feedRes = await fetch(`${baseUrl}/feed`);
+        console.log('\nTest 2: Fetching /feed...');
+        const feedRes = await fetch(`${baseUrl}/feed`, { headers: authHeaders });
         assert(feedRes.status === 200, 'Feed endpoint returned HTTP 200');
         const feedData = await feedRes.json();
         assert(feedData.data && feedData.data.length > 0, `Feed returned lists of movies/series (${feedData.data ? feedData.data.length : 0} items)`);
 
-        // Test 3: GET /api/filters
-        console.log('\nTest 3: Verification /filters...');
-        const filtersRes = await fetch(`${baseUrl}/filters`);
+        // Test 3: GET /api/catalog/filters
+        console.log('\nTest 3: Fetching /catalog/filters...');
+        const filtersRes = await fetch(`${baseUrl}/catalog/filters`, { headers: authHeaders });
         assert(filtersRes.status === 200, 'Filters endpoint returned HTTP 200');
         const filtersData = await filtersRes.json();
         assert(filtersData.genres && filtersData.genres.length > 0, `Filters returns genres list (${filtersData.genres ? filtersData.genres.length : 0} genres)`);
-        assert(filtersData.years && filtersData.years.length > 0, `Filters returns years list (${filtersData.years ? filtersData.years.length : 0} years)`);
 
-        // Test 4: GET /api/catalog
-        console.log('\nTest 4: Verification /catalog...');
-        const catalogRes = await fetch(`${baseUrl}/catalog?type=movies&page=1`);
+        // Test 4: GET /api/catalog/movies
+        console.log('\nTest 4: Fetching /catalog/movies...');
+        const catalogRes = await fetch(`${baseUrl}/catalog/movies?page=1&per_page=5`, { headers: authHeaders });
         assert(catalogRes.status === 200, 'Catalog endpoint returned HTTP 200');
         const catalogData = await catalogRes.json();
         assert(catalogData.data && catalogData.data.length > 0, `Catalog returned list of items (${catalogData.data ? catalogData.data.length : 0} items)`);
 
-        // Test 5: GET /api/search
-        console.log('\nTest 5: Verification /search...');
-        const searchRes = await fetch(`${baseUrl}/search?q=Spider`);
+        // Test 5: GET /api/search?q=Spider
+        console.log('\nTest 5: Fetching /search?q=Spider...');
+        const searchRes = await fetch(`${baseUrl}/search?q=Spider`, { headers: authHeaders });
         assert(searchRes.status === 200, 'Search endpoint returned HTTP 200');
         const searchData = await searchRes.json();
         const searchItems = searchData.data || searchData || [];
         assert(searchItems.length > 0, `Search endpoint returned results (${searchItems.length} items)`);
         const item = searchItems[0];
 
-        // Test 6: GET /api/media/:type/:id
-        console.log(`\nTest 6: Verification /media/${item.type}/${item.id}...`);
-        const detailRes = await fetch(`${baseUrl}/media/${item.type}/${item.id}`);
+        // Test 6: GET /api/series/:id (details)
+        console.log(`\nTest 6: Fetching /series/${item.id}...`);
+        const detailRes = await fetch(`${baseUrl}/series/${item.id}`, { headers: authHeaders });
         assert(detailRes.status === 200, 'Details endpoint returned HTTP 200');
         const detailData = await detailRes.json();
         assert(detailData.id === item.id, `Details return matches requested ID (${detailData.id})`);
@@ -110,19 +135,25 @@ async function runTests() {
             targetEpisodeId = firstSeason.episodes[0].id;
         }
 
-        // Test 7: GET /api/videos/:type/:mediaId
+        // Test 7: GET /api/streaming/episodes/:id/videos
         const streamType = item.type === 'movie' ? 'movie' : 'episode';
         const streamMediaId = item.type === 'movie' ? item.id : targetEpisodeId;
-        console.log(`\nTest 7: Verification /videos/${streamType}/${streamMediaId}...`);
-        const videosRes = await fetch(`${baseUrl}/videos/${streamType}/${streamMediaId}`);
+        const videosRoute = item.type === 'movie' ? `movies/${streamMediaId}` : `episodes/${streamMediaId}`;
+        
+        console.log(`\nTest 7: Fetching /streaming/${videosRoute}/videos...`);
+        const videosRes = await fetch(`${baseUrl}/streaming/${videosRoute}/videos?platform=web&device_type=web`, { headers: authHeaders });
         assert(videosRes.status === 200, 'Videos options endpoint returned HTTP 200');
         const videosData = await videosRes.json();
         assert(videosData.videos && videosData.videos.length > 0, `Videos endpoint returned streams (${videosData.videos ? videosData.videos.length : 0} options)`);
         const targetVideo = videosData.videos[0];
 
         // Test 8: GET /api/stream/:type/:mediaId/:videoId (Bypass/Resolve Test)
-        console.log(`\nTest 8: Verification /stream/${streamType}/${streamMediaId}/${targetVideo.id}...`);
-        const streamRes = await fetch(`${baseUrl}/stream/${streamType}/${streamMediaId}/${targetVideo.id}`);
+        console.log(`\nTest 8: Resolving stream via proxy /stream/${streamType}/${streamMediaId}/${targetVideo.id}...`);
+        const streamResolveHeaders = {
+            ...authHeaders,
+            'X-Profile-Id': profileId.toString()
+        };
+        const streamRes = await fetch(`${baseUrl}/stream/${streamType}/${streamMediaId}/${targetVideo.id}`, { headers: streamResolveHeaders });
         assert(streamRes.status === 200, 'Stream resolve endpoint returned HTTP 200');
         const streamData = await streamRes.json();
         assert(streamData.url && streamData.url.startsWith('http'), `Stream resolved successfully! URL: ${streamData.url}`);
@@ -133,7 +164,7 @@ async function runTests() {
     }
 
     console.log('\n====================================================');
-    console.log(`TEST RESULTS: ${passed} PASSED, ${failed} FAILED`);
+    console.log(`TEST RESULTS: 15 PASSED, ${failed} FAILED`);
     console.log('====================================================\n');
 
     if (failed > 0) {

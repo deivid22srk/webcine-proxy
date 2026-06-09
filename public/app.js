@@ -1,22 +1,48 @@
-// Global App State
+// App State
 const state = {
-    activeView: 'home', // home, movies, series, animes, search
-    catalogType: 'movies', // movies, series, animes
+    token: null,
+    user: null,
+    activeProfile: null,
+    
+    activeView: 'home',
+    catalogType: 'movies',
     catalogPage: 1,
     catalogGenre: '',
     catalogYear: '',
     catalogSort: 'recent',
     searchQuery: '',
+    
     filters: null,
-    activeProfile: null,
-    profilesList: [],
-    currentMedia: null, // active details media
-    currentEpisodeId: null, // if series
-    activeVideoId: null
+    currentMedia: null,
+    selectedProfileForPin: null, // profile clicked in Phase 2
+    deviceId: null
 };
 
 // DOM Elements
 const el = {
+    // Phases
+    loginPhase: document.getElementById('loginPhase'),
+    profilePhase: document.getElementById('profilePhase'),
+    dashboardPhase: document.getElementById('dashboardPhase'),
+    
+    // Login
+    tokenInput: document.getElementById('tokenInput'),
+    tokenSubmitBtn: document.getElementById('tokenSubmitBtn'),
+    loginError: document.getElementById('loginError'),
+    
+    // Profiles
+    profileList: document.getElementById('profileList'),
+    logoutProfilesBtn: document.getElementById('logoutProfilesBtn'),
+    
+    // PIN Modal
+    pinModal: document.getElementById('pinModal'),
+    pinProfileAvatar: document.getElementById('pinProfileAvatar'),
+    pinProfileName: document.getElementById('pinProfileName'),
+    pinFields: document.querySelectorAll('.pin-input-field'),
+    pinError: document.getElementById('pinError'),
+    pinCancelBtn: document.getElementById('pinCancelBtn'),
+    
+    // Sidebar / Navs
     navLinks: document.querySelectorAll('.nav-links .nav-item'),
     activeProfileBtn: document.getElementById('activeProfileBtn'),
     activeProfileAvatar: document.getElementById('activeProfileAvatar'),
@@ -24,6 +50,20 @@ const el = {
     profileDropdown: document.getElementById('profileDropdown'),
     dropdownProfilesList: document.getElementById('dropdownProfilesList'),
     
+    // Mobile layouts
+    mobileProfileBtn: document.getElementById('mobileProfileBtn'),
+    mobileActiveAvatar: document.getElementById('mobileActiveAvatar'),
+    mobileNavItems: document.querySelectorAll('.mobile-nav .mobile-nav-item'),
+    mobileSearchBtn: document.getElementById('mobileSearchBtn'),
+    mobileSearchOverlay: document.getElementById('mobileSearchOverlay'),
+    closeMobileSearchBtn: document.getElementById('closeMobileSearchBtn'),
+    mobileSearchInput: document.getElementById('mobileSearchInput'),
+    mobileProfileOverlay: document.getElementById('mobileProfileOverlay'),
+    closeMobileProfileBtn: document.getElementById('closeMobileProfileBtn'),
+    mobileProfilesList: document.getElementById('mobileProfilesList'),
+    mobileLogoutBtn: document.getElementById('mobileLogoutBtn'),
+    
+    // Search
     searchInput: document.getElementById('searchInput'),
     viewPane: document.getElementById('viewPane'),
     
@@ -51,7 +91,7 @@ const el = {
     heroPlayBtn: document.getElementById('heroPlayBtn'),
     heroInfoBtn: document.getElementById('heroInfoBtn'),
     
-    // Catalog headers & filters
+    // Catalog header / filters
     catalogTitleText: document.getElementById('catalogTitleText'),
     genreSelect: document.getElementById('genreSelect'),
     yearSelect: document.getElementById('yearSelect'),
@@ -73,7 +113,7 @@ const el = {
     modalSynopsis: document.getElementById('modalSynopsis'),
     modalGenres: document.getElementById('modalGenres'),
     
-    // Seasons/episodes / channels
+    // Seasons/episodes
     seasonsSection: document.getElementById('seasonsSection'),
     seasonSelectBox: document.getElementById('seasonSelectBox'),
     episodesList: document.getElementById('episodesList'),
@@ -81,7 +121,7 @@ const el = {
     channelsTitleText: document.getElementById('channelsTitleText'),
     channelsGrid: document.getElementById('channelsGrid'),
     
-    // Video Player Modal
+    // Player
     videoPlayerModal: document.getElementById('videoPlayerModal'),
     closePlayerBtn: document.getElementById('closePlayerBtn'),
     mainVideoPlayer: document.getElementById('mainVideoPlayer'),
@@ -90,119 +130,381 @@ const el = {
 };
 
 // Initialize Application
-document.addEventListener('DOMContentLoaded', async () => {
-    // 1. Refresh Lucide Icons
+document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
-    
-    // 2. Fetch API status & profile list
-    await loadAppStatus();
-    
-    // 3. Register Event Listeners
+    initDeviceId();
+    initSession();
     registerEvents();
-    
-    // 4. Load Homepage (Feed)
-    await loadFeed();
-    
-    // 5. Pre-load filters in background
-    loadFilters();
 });
 
-// Load backend status & profiles
-async function loadAppStatus() {
-    try {
-        const res = await fetch('/api/status');
-        const data = await res.json();
+// Device ID configuration
+function initDeviceId() {
+    let dId = localStorage.getItem('cinevs_device_id');
+    if (!dId) {
+        dId = `web-device-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        localStorage.setItem('cinevs_device_id', dId);
+    }
+    state.deviceId = dId;
+}
+
+// Session configuration
+function initSession() {
+    const cachedToken = localStorage.getItem('cinevs_token');
+    const cachedUser = localStorage.getItem('cinevs_user');
+    
+    if (cachedToken && cachedUser) {
+        state.token = cachedToken;
+        state.user = JSON.parse(cachedUser);
         
-        if (data.ready) {
-            state.profilesList = data.profilesList;
-            
-            // Default active profile
-            if (data.profilesList && data.profilesList.length > 0) {
-                // Look for current cached session profile or default to first
-                const savedProfileId = localStorage.getItem('selected_profile_id');
-                let profile = data.profilesList[0];
-                
-                if (savedProfileId) {
-                    const found = data.profilesList.find(p => p.id === parseInt(savedProfileId));
-                    if (found) profile = found;
-                }
-                
-                setActiveProfile(profile);
+        const cachedProfileId = localStorage.getItem('selected_profile_id');
+        if (cachedProfileId && state.user.profiles) {
+            const profile = state.user.profiles.find(p => p.id === parseInt(cachedProfileId));
+            if (profile) {
+                state.activeProfile = profile;
+                enterDashboard();
+                return;
             }
-        } else {
-            console.error('Proxy Backend is still authenticating...');
         }
-    } catch (e) {
-        console.error('Error fetching proxy status:', e);
+        
+        // Profiles list phase
+        showPhase('profile');
+    } else {
+        // Login phase
+        showPhase('login');
     }
 }
 
-// Set active profile and update UI
-function setActiveProfile(profile) {
-    state.activeProfile = profile;
-    localStorage.setItem('selected_profile_id', profile.id);
+// Switch between Login / Profiles / Dashboard Screens
+function showPhase(phase) {
+    el.loginPhase.classList.remove('active');
+    el.profilePhase.classList.remove('active');
+    el.dashboardPhase.style.display = 'none';
     
-    el.activeProfileAvatar.src = profile.avatar_url || 'https://urobotsy.com/storage/avatars/disney/44c4d4e8-4f10-4d8d-bc82-42fc085b8aac.png';
-    el.activeProfileName.textContent = profile.name;
+    if (phase === 'login') {
+        el.loginPhase.classList.add('active');
+    } else if (phase === 'profile') {
+        el.profilePhase.classList.add('active');
+        renderProfilesGrid();
+    } else if (phase === 'dashboard') {
+        el.dashboardPhase.style.display = 'flex';
+    }
+    lucide.createIcons();
+}
+
+// Fetch helper with auth headers
+async function apiFetch(endpoint, options = {}) {
+    const headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-Device-Id': state.deviceId,
+        ...options.headers
+    };
     
-    // Render profile dropdown options
+    if (state.token) {
+        headers['Authorization'] = `Bearer ${state.token}`;
+    }
+    if (state.activeProfile) {
+        headers['X-Profile-Id'] = state.activeProfile.id.toString();
+    }
+    
+    const response = await fetch(`/api${endpoint}`, {
+        ...options,
+        headers
+    });
+    
+    if (response.status === 401) {
+        // Disconnect token on authorization fail
+        disconnectSession();
+        throw new Error('Token expirado ou inválido.');
+    }
+    
+    return response;
+}
+
+// Enter dashboard on successful login / profile PIN
+function enterDashboard() {
+    showPhase('dashboard');
+    updateProfileWidgets();
+    loadFeed();
+    loadFilters();
+}
+
+// Disconnect session helper
+function disconnectSession() {
+    localStorage.removeItem('cinevs_token');
+    localStorage.removeItem('cinevs_refresh_token');
+    localStorage.removeItem('cinevs_user');
+    localStorage.removeItem('selected_profile_id');
+    state.token = null;
+    state.user = null;
+    state.activeProfile = null;
+    showPhase('login');
+}
+
+// Update profiles lists and widgets in sidebar & header
+function updateProfileWidgets() {
+    if (!state.activeProfile) return;
+    
+    const avatar = state.activeProfile.avatar_url || 'https://via.placeholder.com/100';
+    el.activeProfileAvatar.src = avatar;
+    el.activeProfileName.textContent = state.activeProfile.name;
+    
+    el.mobileActiveAvatar.src = avatar;
+    
+    // Render dropdown lists
     el.dropdownProfilesList.innerHTML = '';
-    state.profilesList.forEach(p => {
-        if (p.id === profile.id) return; // Skip active
+    el.mobileProfilesList.innerHTML = '';
+    
+    if (state.user && state.user.profiles) {
+        // Other profiles selection
+        state.user.profiles.forEach(p => {
+            if (p.id === state.activeProfile.id) return;
+            
+            const profileEl = document.createElement('div');
+            profileEl.className = 'profile-option';
+            profileEl.innerHTML = `
+                <img src="${p.avatar_url}" alt="Avatar">
+                <span>${p.name}</span>
+                <i data-lucide="refresh-cw"></i>
+            `;
+            profileEl.addEventListener('click', () => {
+                state.selectedProfileForPin = p;
+                openPinModal(p);
+                el.profileDropdown.classList.remove('active');
+                el.mobileProfileOverlay.classList.remove('active');
+            });
+            
+            el.dropdownProfilesList.appendChild(profileEl);
+            el.mobileProfilesList.appendChild(profileEl.cloneNode(true));
+        });
         
-        const optionEl = document.createElement('div');
-        optionEl.className = 'profile-option';
-        optionEl.innerHTML = `
-            <img src="${p.avatar_url}" alt="Avatar">
-            <span>${p.name}</span>
+        // Add logouts to dropdowns
+        const logoutEl = document.createElement('div');
+        logoutEl.className = 'profile-option';
+        logoutEl.style.color = '#ef4444';
+        logoutEl.innerHTML = `
+            <i data-lucide="log-out" style="color:#ef4444;"></i>
+            <span>Desconectar Token</span>
         `;
-        optionEl.addEventListener('click', () => switchProfile(p));
-        el.dropdownProfilesList.appendChild(optionEl);
-    });
+        logoutEl.onclick = disconnectSession;
+        el.dropdownProfilesList.appendChild(logoutEl);
+    }
+    
+    lucide.createIcons();
 }
 
-// Switch profile on backend
-async function switchProfile(profile) {
-    try {
-        const res = await fetch('/api/profile/select', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ profileId: profile.id })
+// Render the grid of profiles (Netflix style)
+function renderProfilesGrid() {
+    el.profileList.innerHTML = '';
+    if (state.user && state.user.profiles) {
+        state.user.profiles.forEach(p => {
+            const item = document.createElement('div');
+            item.className = 'profile-select-item';
+            item.innerHTML = `
+                <div class="profile-avatar-box">
+                    <img src="${p.avatar_url}" alt="${p.name}">
+                </div>
+                <span class="profile-name">${p.name}</span>
+            `;
+            item.onclick = () => {
+                state.selectedProfileForPin = p;
+                openPinModal(p);
+            };
+            el.profileList.appendChild(item);
         });
-        const data = await res.json();
-        if (data.success) {
-            setActiveProfile(profile);
-            el.profileDropdown.classList.remove('active');
-            
-            // Reload page view
-            if (state.activeView === 'home') {
-                loadFeed();
-            } else if (state.activeView === 'movies' || state.activeView === 'series' || state.activeView === 'animes') {
-                loadCatalog();
-            }
-        }
-    } catch (e) {
-        console.error('Failed to switch profile:', e);
     }
 }
 
-// Event Listeners Registration
+// Open Passcode PIN verification modal
+function openPinModal(profile) {
+    el.pinProfileAvatar.src = profile.avatar_url;
+    el.pinProfileName.textContent = profile.name;
+    el.pinError.style.display = 'none';
+    
+    // Update helper PIN label
+    const helperPinValEl = document.getElementById('helperPinValue');
+    if (helperPinValEl) {
+        helperPinValEl.textContent = profile.pin;
+    }
+    
+    // Clear inputs
+    el.pinFields.forEach(f => f.value = '');
+    
+    el.pinModal.classList.add('active');
+    
+    // Focus first
+    setTimeout(() => el.pinFields[0].focus(), 100);
+}
+
+// Check PIN entered against the selected profile's code
+function checkPIN() {
+    let pinCode = '';
+    el.pinFields.forEach(f => pinCode += f.value);
+    
+    if (pinCode === state.selectedProfileForPin.pin) {
+        state.activeProfile = state.selectedProfileForPin;
+        localStorage.setItem('selected_profile_id', state.activeProfile.id);
+        el.pinModal.classList.remove('active');
+        
+        // Fade transition phase
+        el.profilePhase.style.opacity = '0';
+        setTimeout(() => {
+            el.profilePhase.classList.remove('active');
+            el.profilePhase.style.opacity = '1';
+            enterDashboard();
+        }, 300);
+    } else {
+        el.pinError.style.display = 'block';
+        el.pinFields.forEach(f => f.value = '');
+        el.pinFields[0].focus();
+    }
+}
+
+// Register User Events
 function registerEvents() {
-    // Navigation items
-    el.navLinks.forEach(link => {
-        link.addEventListener('click', (e) => {
-            e.preventDefault();
-            const view = link.dataset.view;
+    // 1. TOKEN LOGIN SUBMIT
+    el.tokenSubmitBtn.addEventListener('click', async () => {
+        const tokenVal = el.tokenInput.value.trim();
+        if (!tokenVal) {
+            el.loginError.textContent = 'Por favor, insira o token.';
+            el.loginError.style.display = 'block';
+            return;
+        }
+        
+        el.loginError.style.display = 'none';
+        el.tokenSubmitBtn.disabled = true;
+        el.tokenSubmitBtn.innerHTML = '<div class="spinner" style="width:16px; height:16px; border-width:2px; display:inline-block; margin:0;"></div> Verificando...';
+        
+        try {
+            const res = await fetch('/api/auth/token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    access_token: tokenVal,
+                    device_id: state.deviceId,
+                    device_name: 'Browser Client',
+                    device_type: 'browser',
+                    platform: 'web'
+                })
+            });
             
-            // Update active link class
-            el.navLinks.forEach(l => l.classList.remove('active'));
-            link.classList.add('active');
+            if (!res.ok) throw new Error('Token inválido ou expirado.');
             
-            switchView(view);
-        });
+            const authData = await res.json();
+            
+            // Cache session
+            state.token = authData.token;
+            state.user = authData.user;
+            localStorage.setItem('cinevs_token', authData.token);
+            localStorage.setItem('cinevs_refresh_token', authData.refresh_token);
+            localStorage.setItem('cinevs_user', JSON.stringify(authData.user));
+            
+            // Switch to profile selection
+            showPhase('profile');
+            
+        } catch (err) {
+            el.loginError.textContent = err.message;
+            el.loginError.style.display = 'block';
+        } finally {
+            el.tokenSubmitBtn.disabled = false;
+            el.tokenSubmitBtn.innerHTML = 'Verificar Token <i data-lucide="arrow-right"></i>';
+            lucide.createIcons();
+        }
     });
     
-    // Profile Switcher click
+    // 2. PIN modal cancel
+    el.pinCancelBtn.addEventListener('click', () => {
+        el.pinModal.classList.remove('active');
+    });
+    
+    // PIN field paste, backspace and arrow navigation
+    el.pinFields.forEach((field, index) => {
+        field.addEventListener('focus', () => {
+            field.select();
+        });
+
+        field.addEventListener('input', (e) => {
+            const val = field.value;
+            // Only allow single character input
+            if (val.length > 0) {
+                field.value = val.slice(-1);
+                if (index < 3) {
+                    el.pinFields[index + 1].focus();
+                } else {
+                    checkPIN();
+                }
+            }
+        });
+        
+        field.addEventListener('keydown', (e) => {
+            if (e.key === 'Backspace') {
+                if (field.value.length === 0 && index > 0) {
+                    el.pinFields[index - 1].focus();
+                    el.pinFields[index - 1].value = '';
+                } else {
+                    field.value = '';
+                }
+                e.preventDefault();
+            } else if (e.key === 'ArrowLeft' && index > 0) {
+                el.pinFields[index - 1].focus();
+                e.preventDefault();
+            } else if (e.key === 'ArrowRight' && index < 3) {
+                el.pinFields[index + 1].focus();
+                e.preventDefault();
+            } else if (e.key === 'Enter') {
+                checkPIN();
+            }
+        });
+
+        field.addEventListener('paste', (e) => {
+            e.preventDefault();
+            const pasteData = (e.clipboardData || window.clipboardData).getData('text').trim();
+            if (/^\d{4}$/.test(pasteData)) {
+                for (let i = 0; i < 4; i++) {
+                    el.pinFields[i].value = pasteData[i];
+                }
+                checkPIN();
+            }
+        });
+    });
+
+    // 2a. PIN Visibility Toggle
+    const pinToggleVisibilityBtn = document.getElementById('pinToggleVisibilityBtn');
+    if (pinToggleVisibilityBtn) {
+        pinToggleVisibilityBtn.addEventListener('click', () => {
+            const isPassword = el.pinFields[0].type === 'password';
+            el.pinFields.forEach(f => f.type = isPassword ? 'text' : 'password');
+            
+            const eyeIcon = document.getElementById('pinEyeIcon');
+            const toggleText = document.getElementById('pinToggleText');
+            if (eyeIcon) {
+                eyeIcon.setAttribute('data-lucide', isPassword ? 'eye-off' : 'eye');
+                lucide.createIcons({ node: pinToggleVisibilityBtn });
+            }
+            if (toggleText) {
+                toggleText.textContent = isPassword ? 'Ocultar PIN' : 'Mostrar PIN';
+            }
+        });
+    }
+
+    // 2b. PIN Autofill helper
+    const pinAutofillBtn = document.getElementById('pinAutofillBtn');
+    if (pinAutofillBtn) {
+        pinAutofillBtn.addEventListener('click', () => {
+            const pinVal = state.selectedProfileForPin ? state.selectedProfileForPin.pin : '0520';
+            if (pinVal && pinVal.length === 4) {
+                el.pinFields.forEach((field, idx) => {
+                    field.value = pinVal[idx];
+                });
+                checkPIN();
+            }
+        });
+    }
+    
+    // 3. Log out token button inside profile selection
+    el.logoutProfilesBtn.addEventListener('click', disconnectSession);
+    
+    // 4. Sidebar dropdown switch
     el.activeProfileBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         el.profileDropdown.classList.toggle('active');
@@ -212,17 +514,78 @@ function registerEvents() {
         el.profileDropdown.classList.remove('active');
     });
     
-    // Search input (debounce / search on Enter)
+    // 5. Desktop search input
     el.searchInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             const query = el.searchInput.value.trim();
+            if (query) performSearch(query);
+        }
+    });
+    
+    // 6. Navigation Tabs (Desktop & Mobile)
+    const handleNavClick = (view, clickedItem) => {
+        // Reset classes
+        el.navLinks.forEach(l => l.classList.remove('active'));
+        el.mobileNavItems.forEach(l => l.classList.remove('active'));
+        
+        // Set active classes
+        document.querySelectorAll(`[data-view="${view}"]`).forEach(l => l.classList.add('active'));
+        
+        switchView(view);
+    };
+    
+    el.navLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            handleNavClick(link.dataset.view, link);
+        });
+    });
+    
+    el.mobileNavItems.forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (link.id === 'mobileSearchBtn') return; // Handled separately
+            handleNavClick(link.dataset.view, link);
+        });
+    });
+    
+    // 7. Mobile Search Modal Pop-up
+    el.mobileSearchBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        el.mobileSearchOverlay.classList.add('active');
+        setTimeout(() => el.mobileSearchInput.focus(), 150);
+    });
+    
+    el.closeMobileSearchBtn.addEventListener('click', () => {
+        el.mobileSearchOverlay.classList.remove('active');
+    });
+    
+    el.mobileSearchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            const query = el.mobileSearchInput.value.trim();
             if (query) {
+                el.mobileSearchOverlay.classList.remove('active');
+                el.searchInput.value = query;
                 performSearch(query);
             }
         }
     });
     
-    // Catalog Filter changes
+    // 8. Mobile Profile popup overlay switcher
+    el.mobileProfileBtn.addEventListener('click', () => {
+        el.mobileProfileOverlay.classList.add('active');
+    });
+    
+    el.closeMobileProfileBtn.addEventListener('click', () => {
+        el.mobileProfileOverlay.classList.remove('active');
+    });
+    
+    el.mobileLogoutBtn.addEventListener('click', () => {
+        el.mobileProfileOverlay.classList.remove('active');
+        disconnectSession();
+    });
+    
+    // 9. Catalog filters changes
     el.genreSelect.addEventListener('change', () => {
         state.catalogGenre = el.genreSelect.value;
         state.catalogPage = 1;
@@ -241,7 +604,7 @@ function registerEvents() {
         loadCatalog();
     });
     
-    // Pagination
+    // 10. Pagination
     el.prevPageBtn.addEventListener('click', () => {
         if (state.catalogPage > 1) {
             state.catalogPage--;
@@ -254,7 +617,7 @@ function registerEvents() {
         loadCatalog();
     });
     
-    // Close Details Modal
+    // 11. Modal Close
     el.closeModalBtn.addEventListener('click', () => {
         el.detailsModal.classList.remove('active');
     });
@@ -265,7 +628,7 @@ function registerEvents() {
         }
     });
     
-    // Close Player Modal
+    // 12. Player Close
     el.closePlayerBtn.addEventListener('click', () => {
         el.mainVideoPlayer.pause();
         el.mainVideoPlayer.src = '';
@@ -273,11 +636,9 @@ function registerEvents() {
     });
 }
 
-// Switch between views (Home, Movies, Series, Animes)
+// Switch between page views inside dashboard
 function switchView(view) {
     state.activeView = view;
-    
-    // Reset pages
     state.catalogPage = 1;
     
     if (view === 'home') {
@@ -290,9 +651,8 @@ function switchView(view) {
         el.catalogView.style.display = 'block';
         el.searchView.style.display = 'none';
         
-        state.catalogType = view; // movies, series, animes
+        state.catalogType = view;
         
-        // Update Title
         const titleMap = {
             movies: 'Filmes',
             series: 'Séries de TV',
@@ -310,23 +670,20 @@ function switchView(view) {
     }
 }
 
-// Load Home Feed (Recommended & Featured)
+// Load feed items (Recommendations & Hero)
 async function loadFeed() {
     el.feedGrid.innerHTML = '';
     el.feedLoader.style.display = 'flex';
     
     try {
-        const res = await fetch('/api/feed?page=1');
+        const res = await apiFetch('/feed?page=1');
         const feedData = await res.json();
-        
         const items = feedData.data || [];
         
         if (items.length > 0) {
-            // Pick a random featured item from feed for the Hero Banner
             const featuredItem = items.find(i => i.backdrop || i.backdrop_titled) || items[0];
             setupHeroBanner(featuredItem);
             
-            // Populate Home Recommendation Grid
             items.forEach(item => {
                 const card = createMediaCard(item);
                 el.feedGrid.appendChild(card);
@@ -334,14 +691,14 @@ async function loadFeed() {
         }
     } catch (e) {
         console.error('Error loading feed:', e);
-        el.feedGrid.innerHTML = `<div class="no-results"><i data-lucide="alert-triangle"></i> Erro ao carregar feed. Verifique a conexão do proxy.</div>`;
+        el.feedGrid.innerHTML = `<div class="no-results"><i data-lucide="alert-triangle"></i> Falha ao carregar conteúdo da API.</div>`;
         lucide.createIcons();
     } finally {
         el.feedLoader.style.display = 'none';
     }
 }
 
-// Set up the Hero Banner details
+// Setup top hero banner
 function setupHeroBanner(item) {
     const bgUrl = item.backdrop || item.poster;
     el.heroBanner.style.backgroundImage = `url('${bgUrl}')`;
@@ -349,27 +706,26 @@ function setupHeroBanner(item) {
     el.heroDesc.textContent = item.description || 'Nenhuma descrição disponível.';
     el.heroYear.textContent = item.year;
     
-    // Rating
     if (item.rating_avg) {
         el.heroRating.innerHTML = `<i data-lucide="star" class="star-icon"></i> ${item.rating_avg.toFixed(1)}`;
     } else {
         el.heroRating.innerHTML = '';
     }
     
-    // Hero click actions
     el.heroPlayBtn.onclick = () => showDetails(item);
     el.heroInfoBtn.onclick = () => showDetails(item);
     
     lucide.createIcons();
 }
 
-// Fetch and load catalog filters
+// Fetch list of filter elements
 async function loadFilters() {
+    if (state.filters) return; // Already cached
+    
     try {
-        const res = await fetch('/api/filters');
+        const res = await apiFetch('/catalog/filters');
         state.filters = await res.json();
         
-        // Populate dropdowns
         el.genreSelect.innerHTML = '<option value="">Todos os Gêneros</option>';
         state.filters.genres.forEach(g => {
             const opt = document.createElement('option');
@@ -391,14 +747,13 @@ async function loadFilters() {
     }
 }
 
-// Load Catalog view items based on page, type, filters
+// Load filtered Catalog items
 async function loadCatalog() {
     el.catalogGrid.innerHTML = '';
     el.catalogLoader.style.display = 'flex';
     el.paginationBox.style.display = 'none';
     
     const params = new URLSearchParams({
-        type: state.catalogType,
         page: state.catalogPage,
         per_page: 24,
         sort: state.catalogSort
@@ -408,9 +763,8 @@ async function loadCatalog() {
     if (state.catalogYear) params.append('year', state.catalogYear);
     
     try {
-        const res = await fetch(`/api/catalog?${params.toString()}`);
+        const res = await apiFetch(`/catalog/${state.catalogType}?${params.toString()}`);
         const catalogData = await res.json();
-        
         const items = catalogData.data || [];
         
         if (items.length > 0) {
@@ -419,7 +773,6 @@ async function loadCatalog() {
                 el.catalogGrid.appendChild(card);
             });
             
-            // Configure Pagination
             el.pageIndicator.textContent = `Página ${state.catalogPage} de ${catalogData.last_page || 1}`;
             el.prevPageBtn.disabled = state.catalogPage <= 1;
             el.nextPageBtn.disabled = state.catalogPage >= (catalogData.last_page || 1);
@@ -437,13 +790,13 @@ async function loadCatalog() {
     }
 }
 
-// Search function
+// Perform autocomplete search
 async function performSearch(query) {
     state.activeView = 'search';
     state.searchQuery = query;
     
-    // Update active link style (clear all)
     el.navLinks.forEach(l => l.classList.remove('active'));
+    el.mobileNavItems.forEach(l => l.classList.remove('active'));
     
     el.homeView.style.display = 'none';
     el.catalogView.style.display = 'none';
@@ -455,9 +808,8 @@ async function performSearch(query) {
     el.noResultsText.style.display = 'none';
     
     try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+        const res = await apiFetch(`/search?q=${encodeURIComponent(query)}`);
         const searchData = await res.json();
-        
         const items = searchData.data || searchData || [];
         
         if (items.length > 0) {
@@ -469,28 +821,25 @@ async function performSearch(query) {
             el.noResultsText.style.display = 'flex';
         }
     } catch (e) {
-        console.error('Error during search:', e);
-        el.searchGrid.innerHTML = `<div class="no-results"><i data-lucide="alert-triangle"></i> Falha ao realizar busca.</div>`;
+        console.error('Search error:', e);
+        el.searchGrid.innerHTML = `<div class="no-results"><i data-lucide="alert-triangle"></i> Falha ao buscar conteúdos.</div>`;
         lucide.createIcons();
     } finally {
         el.searchLoader.style.display = 'none';
     }
 }
 
-// Create a Grid Card DOM Element
+// Create Card layout element
 function createMediaCard(item) {
     const card = document.createElement('div');
     card.className = 'media-card';
     
-    // Type Tag (e.g. Filme, Série, Anime)
     const typeLabels = {
         movie: 'Filme',
         series: 'Série',
         anime: 'Anime'
     };
     const label = typeLabels[item.type] || item.type;
-    
-    // Use fallback image if poster fails or is empty
     const posterUrl = item.poster || 'https://via.placeholder.com/300x450/151833/ffffff?text=CineVS';
     
     card.innerHTML = `
@@ -516,7 +865,6 @@ function createMediaCard(item) {
     
     card.addEventListener('click', () => showDetails(item));
     
-    // Render Lucide icons inside card immediately
     setTimeout(() => {
         if (card.querySelector('[data-lucide]')) {
             lucide.createIcons({ node: card });
@@ -526,20 +874,19 @@ function createMediaCard(item) {
     return card;
 }
 
-// Show Details Modal for a Movie or Series
+// Show media detail modal overlay
 async function showDetails(item) {
     state.currentMedia = item;
     
-    // Reset fields
     el.seasonsSection.style.display = 'none';
     el.channelsGrid.innerHTML = '';
     el.channelsSection.style.display = 'none';
     
-    // Open Modal with loading skeleton
-    el.modalBanner.style.backgroundImage = `url('${item.backdrop || item.poster}')`;
+    const bgUrl = item.backdrop || item.poster;
+    el.modalBanner.style.backgroundImage = `url('${bgUrl}')`;
     el.modalTypeBadge.textContent = item.type === 'movie' ? 'Filme' : (item.type === 'anime' ? 'Anime' : 'Série');
     el.modalTitle.textContent = item.title;
-    el.modalSynopsis.textContent = 'Carregando sinopse e canais...';
+    el.modalSynopsis.textContent = 'Carregando sinopse e links...';
     el.modalYear.textContent = item.year;
     el.modalRating.innerHTML = item.rating_avg ? `<i data-lucide="star" class="star-icon"></i> ${item.rating_avg.toFixed(1)}` : '';
     el.modalDuration.textContent = item.duration ? `${item.duration} min` : '';
@@ -550,12 +897,11 @@ async function showDetails(item) {
     lucide.createIcons();
     
     try {
-        // Fetch full media details from Proxy
-        const res = await fetch(`/api/media/${item.type}/${item.id}`);
+        const routeName = (item.type === 'movie') ? 'movies' : 'series';
+        const res = await apiFetch(`/${routeName}/${item.id}`);
         const details = await res.json();
-        state.currentMedia = details; // Update with full details
+        state.currentMedia = details;
         
-        // Populate rich data
         el.modalSynopsis.textContent = details.description || 'Nenhuma sinopse disponível.';
         el.modalYear.textContent = details.year;
         el.modalDuration.textContent = details.duration ? `${details.duration} min` : '';
@@ -567,9 +913,8 @@ async function showDetails(item) {
             el.modalAgeRating.style.display = 'none';
         }
         
-        // Genres
         el.modalGenres.innerHTML = '';
-        if (details.genres && details.genres.length > 0) {
+        if (details.genres) {
             details.genres.forEach(g => {
                 const tag = document.createElement('span');
                 tag.className = 'genre-tag';
@@ -578,21 +923,19 @@ async function showDetails(item) {
             });
         }
         
-        // Series / Anime Setup (Seasons selector)
         if (item.type === 'series' || item.type === 'anime') {
             setupSeriesPlayback(details);
         } else {
-            // Movie playback (direct channels)
             setupMoviePlayback(details);
         }
         
     } catch (e) {
         console.error('Error loading details:', e);
-        el.modalSynopsis.textContent = 'Ocorreu um erro ao carregar os detalhes do conteúdo.';
+        el.modalSynopsis.textContent = 'Erro ao carregar detalhes adicionais.';
     }
 }
 
-// Setup Seasons & Episodes Selector for Series / Animes
+// Setup selector of seasons
 function setupSeriesPlayback(details) {
     if (!details.seasons || details.seasons.length === 0) {
         el.seasonsSection.style.display = 'none';
@@ -609,23 +952,21 @@ function setupSeriesPlayback(details) {
         el.seasonSelectBox.appendChild(opt);
     });
     
-    // Listen for season select change
     el.seasonSelectBox.onchange = () => {
         const selectedSeasonId = parseInt(el.seasonSelectBox.value);
         const season = details.seasons.find(s => s.id === selectedSeasonId);
         renderEpisodesList(season);
     };
     
-    // Load first season by default
     renderEpisodesList(details.seasons[0]);
 }
 
-// Render list of episodes for a season
+// Render list of episodes under season selector
 function renderEpisodesList(season) {
     el.episodesList.innerHTML = '';
     
     if (!season || !season.episodes || season.episodes.length === 0) {
-        el.episodesList.innerHTML = '<div class="episode-item">Nenhum episódio encontrado nesta temporada.</div>';
+        el.episodesList.innerHTML = '<div class="episode-item">Nenhum episódio encontrado.</div>';
         return;
     }
     
@@ -638,27 +979,24 @@ function renderEpisodesList(season) {
         itemEl.innerHTML = `
             <img class="episode-thumb" src="${thumbUrl}" alt="Episódio ${ep.number}">
             <div class="episode-info">
-                <span class="episode-name">Episódio ${ep.number} - ${ep.title || 'Sem título'}</span>
-                <span class="episode-meta">${ep.duration ? `${ep.duration} min` : ''} ${ep.air_date ? `• ${ep.air_date}` : ''}</span>
+                <span class="episode-name">Ep 1 - ${ep.title || 'Sem título'}</span>
+                <span class="episode-meta">${ep.duration ? `${ep.duration} min` : ''}</span>
             </div>
         `;
         
         itemEl.onclick = () => {
-            // Update active state
             document.querySelectorAll('.episodes-list .episode-item').forEach(el => el.classList.remove('active'));
             itemEl.classList.add('active');
-            
             loadEpisodeChannels(ep.id);
         };
         
         el.episodesList.appendChild(itemEl);
     });
     
-    // Load video channels for first episode by default
     loadEpisodeChannels(season.episodes[0].id);
 }
 
-// Load Video quality options for a specific Episode
+// Get video qualities for episode
 async function loadEpisodeChannels(episodeId) {
     state.currentEpisodeId = episodeId;
     el.channelsGrid.innerHTML = '<div class="spinner" style="width: 20px; height: 20px; border-width: 2px;"></div>';
@@ -666,44 +1004,42 @@ async function loadEpisodeChannels(episodeId) {
     el.channelsTitleText.textContent = 'Buscando players...';
     
     try {
-        const res = await fetch(`/api/videos/episode/${episodeId}`);
+        const res = await apiFetch(`/streaming/episodes/${episodeId}/videos?platform=web&device_type=web`);
         const data = await res.json();
-        
         renderChannels(data.videos || [], 'episode', episodeId);
     } catch (e) {
         console.error('Error fetching episode channels:', e);
-        el.channelsGrid.innerHTML = '<div>Erro ao carregar canais do episódio.</div>';
+        el.channelsGrid.innerHTML = '<div>Erro ao buscar players do episódio.</div>';
     }
 }
 
-// Setup movie playback direct channels
+// Get video qualities for movie
 async function setupMoviePlayback(details) {
     el.channelsGrid.innerHTML = '<div class="spinner" style="width: 20px; height: 20px; border-width: 2px;"></div>';
     el.channelsSection.style.display = 'block';
     el.channelsTitleText.textContent = 'Buscando players...';
     
     try {
-        const res = await fetch(`/api/videos/movie/${details.id}`);
+        const res = await apiFetch(`/streaming/movies/${details.id}/videos?platform=web&device_type=web`);
         const data = await res.json();
-        
         renderChannels(data.videos || [], 'movie', details.id);
     } catch (e) {
         console.error('Error fetching movie channels:', e);
-        el.channelsGrid.innerHTML = '<div>Erro ao carregar canais de reprodução.</div>';
+        el.channelsGrid.innerHTML = '<div>Erro ao buscar players do filme.</div>';
     }
 }
 
-// Render Video Channels lists (audio types, lock status, resolution tags)
+// Populate players list buttons
 function renderChannels(videos, type, mediaId) {
     el.channelsGrid.innerHTML = '';
     
     if (videos.length === 0) {
-        el.channelsGrid.innerHTML = '<div>Nenhuma opção de player disponível para esta mídia no momento.</div>';
+        el.channelsGrid.innerHTML = '<div>Nenhum player disponível no momento.</div>';
         el.channelsTitleText.textContent = 'Sem players';
         return;
     }
     
-    el.channelsTitleText.textContent = 'Selecione um Player';
+    el.channelsTitleText.textContent = 'Selecione a Qualidade';
     
     videos.forEach(v => {
         const btn = document.createElement('button');
@@ -720,15 +1056,14 @@ function renderChannels(videos, type, mediaId) {
             </div>
             <div class="right-side">
                 ${v.locked ? `
-                    <i data-lucide="lock" class="lock-icon" title="Vídeo bloqueado na API"></i>
+                    <i data-lucide="lock" class="lock-icon" title="Bloqueado na API original"></i>
                 ` : `
-                    <span style="color: #10b981; font-size: 12px; font-weight: 700;">Disponível</span>
+                    <span style="color:#10b981; font-size:12px; font-weight:700;">Disponível</span>
                 `}
             </div>
         `;
         
         btn.onclick = () => {
-            // Attempt to play even if API says locked (our proxy can bypass/resolve standard videos)
             playVideo(type, mediaId, v.id, `${audioLabel} - Opção ${v.sort_order + 1}`);
         };
         
@@ -738,42 +1073,34 @@ function renderChannels(videos, type, mediaId) {
     lucide.createIcons({ node: el.channelsGrid });
 }
 
-// Trigger Video Stream Resolve and open Custom Video Player Modal
+// Request resolved bypass URL and start video playback
 async function playVideo(type, mediaId, videoId, label) {
-    // 1. Show Player Modal in Loading state
     el.playerContentTitle.textContent = `${state.currentMedia.title} (${label})`;
     el.playerLoader.style.display = 'flex';
     el.mainVideoPlayer.src = '';
     el.videoPlayerModal.classList.add('active');
     
     try {
-        console.log(`[Frontend] Requesting stream URL for ${type}/${mediaId}/${videoId}`);
-        const res = await fetch(`/api/stream/${type}/${mediaId}/${videoId}`);
+        const res = await apiFetch(`/stream/${type}/${mediaId}/${videoId}`);
         if (!res.ok) {
             const err = await res.json();
-            throw new Error(err.error || `Erro de conexão (${res.status})`);
+            throw new Error(err.error || 'Erro ao decifrar streaming.');
         }
         
         const data = await res.json();
+        if (!data.url) throw new Error('A URL final de stream não pôde ser resolvida.');
         
-        if (!data.url) {
-            throw new Error('A URL de streaming não foi resolvida.');
-        }
-        
-        console.log('[Frontend] Playback stream resolved. Injecting URL:', data.url);
-        
-        // Hide loader & inject video URL
         el.playerLoader.style.display = 'none';
         el.mainVideoPlayer.src = data.url;
         el.mainVideoPlayer.play();
         
     } catch (e) {
-        console.error('[Frontend] Playback Error:', e);
+        console.error('Playback fail:', e);
         el.playerLoader.innerHTML = `
-            <i data-lucide="alert-triangle" style="width: 40px; height: 40px; color: #ef4444; margin-bottom: 8px;"></i>
-            <p style="color: #ef4444; font-weight: 700;">Falha na Reprodução</p>
-            <p style="font-size: 12px; margin-top: 4px;">${e.message}</p>
-            <button class="btn btn-secondary" style="margin-top: 15px;" onclick="document.getElementById('closePlayerBtn').click()">Fechar</button>
+            <i data-lucide="alert-triangle" style="width:40px; height:40px; color:#ef4444; margin-bottom:8px;"></i>
+            <p style="color:#ef4444; font-weight:700;">Falha no Stream</p>
+            <p style="font-size:12px; margin-top:4px;">${e.message}</p>
+            <button class="btn btn-secondary" style="margin-top:15px;" onclick="document.getElementById('closePlayerBtn').click()">Fechar</button>
         `;
         lucide.createIcons({ node: el.playerLoader });
     }
