@@ -295,6 +295,69 @@
                     </div>
                 </div>
 
+                <!-- 4. DEDICATED MEDIA DETAILS VIEW -->
+                <div class="view-pane-sub" id="detailsView" style="display: none;">
+                    <div class="details-back-header">
+                        <button class="btn btn-secondary" id="backToPreviousViewBtn">
+                            <i data-lucide="arrow-left"></i> Voltar
+                        </button>
+                    </div>
+                    <div class="details-page-container">
+                        <!-- Banner Top -->
+                        <div class="modal-banner" id="modalBanner">
+                            <div class="banner-overlay"></div>
+                            <div class="banner-info">
+                                <span class="badge" id="modalTypeBadge">Filme</span>
+                                <h2 class="modal-title" id="modalTitle">Nome do Conteúdo</h2>
+                                <div class="modal-meta-row">
+                                    <span class="rating" id="modalRating"><i data-lucide="star" class="star-icon"></i> 4.5</span>
+                                    <span id="modalYear">2024</span>
+                                    <span id="modalDuration">1h 45m</span>
+                                    <span class="badge age-rating" id="modalAgeRating">14</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Detail Info -->
+                        <div class="modal-body">
+                            <div class="modal-left">
+                                <p class="modal-synopsis" id="modalSynopsis">Sinopse do filme ou série aqui...</p>
+                                <div class="genres-row" id="modalGenres">
+                                    <!-- genres -->
+                                </div>
+                            </div>
+                            
+                            <div class="modal-right">
+                                <!-- Play options container -->
+                                <div class="playback-section">
+                                    <h3 class="subsection-title">Reprodução</h3>
+                                    
+                                    <!-- SEASONS & EPISODES SELECTION -->
+                                    <div class="seasons-container" id="seasonsSection" style="display: none;">
+                                        <div class="seasons-selector-wrapper">
+                                            <label for="seasonSelectBox">Temporada</label>
+                                            <select id="seasonSelectBox">
+                                                <!-- Dynamic options -->
+                                            </select>
+                                        </div>
+                                        <div class="episodes-list" id="episodesList">
+                                            <!-- Dynamic episodes -->
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- MOVIE OR SELECTED EPISODE VIDEOS CHANNELS -->
+                                    <div class="video-channels-section" id="channelsSection">
+                                        <h4 class="channels-title" id="channelsTitleText">Opções de Players</h4>
+                                        <div class="channels-grid" id="channelsGrid">
+                                            <!-- Options of audio / premium / locks -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </main>
         
@@ -348,68 +411,7 @@
             </div>
         </div>
 
-        <!-- ========================================== -->
-        <!-- MEDIA DETAILS MODAL                        -->
-        <!-- ========================================== -->
-        <div class="modal-backdrop" id="detailsModal">
-            <div class="modal-container">
-                <!-- Close Button -->
-                <button class="modal-close-btn" id="closeModalBtn"><i data-lucide="x"></i></button>
-                
-                <!-- Banner Top -->
-                <div class="modal-banner" id="modalBanner">
-                    <div class="banner-overlay"></div>
-                    <div class="banner-info">
-                        <span class="badge" id="modalTypeBadge">Filme</span>
-                        <h2 class="modal-title" id="modalTitle">Nome do Conteúdo</h2>
-                        <div class="modal-meta-row">
-                            <span class="rating" id="modalRating"><i data-lucide="star" class="star-icon"></i> 4.5</span>
-                            <span id="modalYear">2024</span>
-                            <span id="modalDuration">1h 45m</span>
-                            <span class="badge age-rating" id="modalAgeRating">14</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Detail Info -->
-                <div class="modal-body">
-                    <div class="modal-left">
-                        <p class="modal-synopsis" id="modalSynopsis">Sinopse do filme ou série aqui...</p>
-                        <div class="genres-row" id="modalGenres">
-                            <!-- genres -->
-                        </div>
-                    </div>
-                    
-                    <div class="modal-right">
-                        <!-- Play options container -->
-                        <div class="playback-section">
-                            <h3 class="subsection-title">Reprodução</h3>
-                            
-                            <!-- SEASONS & EPISODES SELECTION -->
-                            <div class="seasons-container" id="seasonsSection" style="display: none;">
-                                <div class="seasons-selector-wrapper">
-                                    <label for="seasonSelectBox">Temporada</label>
-                                    <select id="seasonSelectBox">
-                                        <!-- Dynamic options -->
-                                    </select>
-                                </div>
-                                <div class="episodes-list" id="episodesList">
-                                    <!-- Dynamic episodes -->
-                                </div>
-                            </div>
-                            
-                            <!-- MOVIE OR SELECTED EPISODE VIDEOS CHANNELS -->
-                            <div class="video-channels-section" id="channelsSection">
-                                <h4 class="channels-title" id="channelsTitleText">Opções de Players</h4>
-                                <div class="channels-grid" id="channelsGrid">
-                                    <!-- Options of audio / premium / locks -->
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+
 
         <!-- ========================================== -->
         <!-- STREAMING VIDEO MODAL PLAYER               -->

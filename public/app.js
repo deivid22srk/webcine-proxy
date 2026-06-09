@@ -100,9 +100,9 @@ const el = {
     nextPageBtn: document.getElementById('nextPageBtn'),
     pageIndicator: document.getElementById('pageIndicator'),
     
-    // Details Modal
-    detailsModal: document.getElementById('detailsModal'),
-    closeModalBtn: document.getElementById('closeModalBtn'),
+    // Details View
+    detailsView: document.getElementById('detailsView'),
+    backToPreviousViewBtn: document.getElementById('backToPreviousViewBtn'),
     modalBanner: document.getElementById('modalBanner'),
     modalTypeBadge: document.getElementById('modalTypeBadge'),
     modalTitle: document.getElementById('modalTitle'),
@@ -618,14 +618,26 @@ function registerEvents() {
         loadCatalog();
     });
     
-    // 11. Modal Close
-    el.closeModalBtn.addEventListener('click', () => {
-        el.detailsModal.classList.remove('active');
-    });
-    
-    el.detailsModal.addEventListener('click', (e) => {
-        if (e.target === el.detailsModal) {
-            el.detailsModal.classList.remove('active');
+    // 11. Back to Previous View
+    el.backToPreviousViewBtn.addEventListener('click', () => {
+        if (state.previousView) {
+            if (state.previousView === 'search') {
+                state.activeView = 'search';
+                el.homeView.style.display = 'none';
+                el.catalogView.style.display = 'none';
+                el.searchView.style.display = 'block';
+                el.detailsView.style.display = 'none';
+            } else {
+                switchView(state.previousView);
+                el.navLinks.forEach(l => l.classList.remove('active'));
+                el.mobileNavItems.forEach(l => l.classList.remove('active'));
+                document.querySelectorAll(`[data-view="${state.previousView}"]`).forEach(l => l.classList.add('active'));
+            }
+        } else {
+            switchView('home');
+            el.navLinks.forEach(l => l.classList.remove('active'));
+            el.mobileNavItems.forEach(l => l.classList.remove('active'));
+            document.querySelectorAll(`[data-view="home"]`).forEach(l => l.classList.add('active'));
         }
     });
     
@@ -636,6 +648,10 @@ function registerEvents() {
 function switchView(view) {
     state.activeView = view;
     state.catalogPage = 1;
+    
+    if (el.detailsView) {
+        el.detailsView.style.display = 'none';
+    }
     
     if (view === 'home') {
         el.homeView.style.display = 'block';
@@ -803,6 +819,10 @@ function createNewsCard(item) {
 
 // Show announcement overlay details
 function showAnnouncementModal(item) {
+    if (state.activeView !== 'details') {
+        state.previousView = state.activeView;
+    }
+    
     el.seasonsSection.style.display = 'none';
     el.channelsGrid.innerHTML = '';
     el.channelsSection.style.display = 'none';
@@ -835,7 +855,17 @@ function showAnnouncementModal(item) {
         el.modalSynopsis.appendChild(wrapper);
     }
     
-    el.detailsModal.classList.add('active');
+    // Switch to details view
+    state.activeView = 'details';
+    el.homeView.style.display = 'none';
+    el.catalogView.style.display = 'none';
+    el.searchView.style.display = 'none';
+    el.detailsView.style.display = 'block';
+    
+    el.detailsView.scrollTop = 0;
+    const mainContent = document.querySelector('.main-content');
+    if (mainContent) mainContent.scrollTop = 0;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 // Setup top hero banner
@@ -941,6 +971,9 @@ async function performSearch(query) {
     el.homeView.style.display = 'none';
     el.catalogView.style.display = 'none';
     el.searchView.style.display = 'block';
+    if (el.detailsView) {
+        el.detailsView.style.display = 'none';
+    }
     
     el.searchQueryWord.textContent = `"${query}"`;
     el.searchGrid.innerHTML = '';
@@ -1014,8 +1047,11 @@ function createMediaCard(item) {
     return card;
 }
 
-// Show media detail modal overlay
+// Show media detail dedicated view
 async function showDetails(item) {
+    if (state.activeView !== 'details') {
+        state.previousView = state.activeView;
+    }
     state.currentMedia = item;
     
     el.seasonsSection.style.display = 'none';
@@ -1033,7 +1069,19 @@ async function showDetails(item) {
     el.modalAgeRating.textContent = '';
     el.modalGenres.innerHTML = '';
     
-    el.detailsModal.classList.add('active');
+    // Switch to details view instead of showing modal
+    state.activeView = 'details';
+    el.homeView.style.display = 'none';
+    el.catalogView.style.display = 'none';
+    el.searchView.style.display = 'none';
+    el.detailsView.style.display = 'block';
+    
+    // Scroll content to top
+    el.detailsView.scrollTop = 0;
+    const mainContent = document.querySelector('.main-content');
+    if (mainContent) mainContent.scrollTop = 0;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    
     lucide.createIcons();
     
     try {
@@ -1094,7 +1142,7 @@ function setupSeriesPlayback(details) {
     
     el.seasonSelectBox.onchange = () => {
         const selectedSeasonId = parseInt(el.seasonSelectBox.value);
-        const season = details.seasons.find(s => s.id === selectedSeasonId);
+        const season = details.seasons.find(s => s.id == selectedSeasonId);
         renderEpisodesList(season);
     };
     
@@ -1119,7 +1167,7 @@ function renderEpisodesList(season) {
         itemEl.innerHTML = `
             <img class="episode-thumb" src="${thumbUrl}" alt="Episódio ${ep.number}">
             <div class="episode-info">
-                <span class="episode-name">Ep 1 - ${ep.title || 'Sem título'}</span>
+                <span class="episode-name">Ep ${ep.number || (index + 1)} - ${ep.title || 'Sem título'}</span>
                 <span class="episode-meta">${ep.duration ? `${ep.duration} min` : ''}</span>
             </div>
         `;
