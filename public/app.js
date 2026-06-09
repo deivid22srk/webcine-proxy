@@ -135,6 +135,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initDeviceId();
     initSession();
     registerEvents();
+    initCustomPlayer();
 });
 
 // Device ID configuration
@@ -628,12 +629,7 @@ function registerEvents() {
         }
     });
     
-    // 12. Player Close
-    el.closePlayerBtn.addEventListener('click', () => {
-        el.mainVideoPlayer.pause();
-        el.mainVideoPlayer.src = '';
-        el.videoPlayerModal.classList.remove('active');
-    });
+    // 12. Player Close (Handled by custom player module)
 }
 
 // Switch between page views inside dashboard
@@ -1248,4 +1244,420 @@ async function playVideo(type, mediaId, videoId, label) {
         `;
         lucide.createIcons({ node: el.playerLoader });
     }
+}
+
+// ====================================================
+// CUSTOM DEDICATED STREAMING PLAYER MODULE
+// ====================================================
+
+let playerState = {
+    isMuted: false,
+    prevVolume: 1,
+    controlsTimeout: null,
+    isScrubbing: false
+};
+
+function initCustomPlayer() {
+    const video = el.mainVideoPlayer;
+    const wrapper = document.getElementById('videoWrapper');
+    const playPauseBtn = document.getElementById('playPauseBtn');
+    const skipBackBtn = document.getElementById('skipBackBtn');
+    const skipForwardBtn = document.getElementById('skipForwardBtn');
+    const volumeBtn = document.getElementById('volumeBtn');
+    const volumeSlider = document.getElementById('volumeSlider');
+    const currentTimeEl = document.getElementById('currentTime');
+    const durationTimeEl = document.getElementById('durationTime');
+    const speedBtn = document.getElementById('speedBtn');
+    const speedDropdown = document.getElementById('speedDropdown');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const progressContainer = document.getElementById('progressContainer');
+    const progressBarFilled = document.getElementById('progressBarFilled');
+    const progressBarBuffered = document.getElementById('progressBarBuffered');
+    const progressBarHandle = document.getElementById('progressBarHandle');
+    const centerPlayIndicator = document.getElementById('centerPlayIndicator');
+    const seekLeftFeedback = document.getElementById('seekLeftFeedback');
+    const seekRightFeedback = document.getElementById('seekRightFeedback');
+    const playerBackBtn = document.getElementById('playerBackBtn');
+
+    if (!video || !wrapper) return;
+
+    // Helper: format time (MM:SS or HH:MM:SS)
+    function formatTime(time) {
+        if (isNaN(time)) return '00:00';
+        const hours = Math.floor(time / 3600);
+        const minutes = Math.floor((time % 3600) / 60);
+        const seconds = Math.floor(time % 60);
+        
+        const pad = (num) => String(num).padStart(2, '0');
+        
+        if (hours > 0) {
+            return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+        }
+        return `${pad(minutes)}:${pad(seconds)}`;
+    }
+
+    // Play/Pause toggle
+    function togglePlay() {
+        if (video.paused) {
+            video.play();
+        } else {
+            video.pause();
+        }
+        triggerCenterPlayIndicator();
+    }
+
+    function triggerCenterPlayIndicator() {
+        centerPlayIndicator.classList.remove('active');
+        const icon = centerPlayIndicator.querySelector('i');
+        if (icon) {
+            icon.setAttribute('data-lucide', video.paused ? 'pause' : 'play');
+            lucide.createIcons({ node: centerPlayIndicator });
+        }
+        // Force reflow
+        void centerPlayIndicator.offsetWidth;
+        centerPlayIndicator.classList.add('active');
+        setTimeout(() => centerPlayIndicator.classList.remove('active'), 500);
+    }
+
+    // Video events
+    video.addEventListener('play', () => {
+        playPauseBtn.innerHTML = '<i data-lucide="pause"></i>';
+        lucide.createIcons({ node: playPauseBtn });
+        resetControlsTimeout();
+    });
+
+    video.addEventListener('pause', () => {
+        playPauseBtn.innerHTML = '<i data-lucide="play"></i>';
+        lucide.createIcons({ node: playPauseBtn });
+        showControls();
+    });
+
+    video.addEventListener('timeupdate', () => {
+        if (!playerState.isScrubbing) {
+            const percent = (video.currentTime / video.duration) * 100;
+            progressBarFilled.style.width = `${percent}%`;
+            progressBarHandle.style.left = `${percent}%`;
+            currentTimeEl.textContent = formatTime(video.currentTime);
+        }
+    });
+
+    video.addEventListener('durationchange', () => {
+        durationTimeEl.textContent = formatTime(video.duration);
+    });
+
+    video.addEventListener('progress', () => {
+        if (video.duration && video.buffered.length > 0) {
+            const lastBuffered = video.buffered.end(video.buffered.length - 1);
+            const percent = (lastBuffered / video.duration) * 100;
+            progressBarBuffered.style.width = `${percent}%`;
+        }
+    });
+
+    // Control bar clicks
+    playPauseBtn.addEventListener('click', togglePlay);
+    
+    // Video surface clicks
+    video.addEventListener('click', (e) => {
+        e.stopPropagation();
+        togglePlay();
+    });
+
+    // Double click seeking
+    video.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        const rect = video.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const width = rect.width;
+        
+        if (clickX < width * 0.35) {
+            // Left double-click (rewind 10s)
+            video.currentTime = Math.max(0, video.currentTime - 10);
+            triggerSeekFeedback('left');
+        } else if (clickX > width * 0.65) {
+            // Right double-click (fast-forward 10s)
+            video.currentTime = Math.min(video.duration || 0, video.currentTime + 10);
+            triggerSeekFeedback('right');
+        }
+    });
+
+    function triggerSeekFeedback(direction) {
+        const feedback = direction === 'left' ? seekLeftFeedback : seekRightFeedback;
+        feedback.classList.remove('active');
+        void feedback.offsetWidth;
+        feedback.classList.add('active');
+        setTimeout(() => feedback.classList.remove('active'), 650);
+    }
+
+    // 10s skips
+    skipBackBtn.addEventListener('click', () => {
+        video.currentTime = Math.max(0, video.currentTime - 10);
+        triggerSeekFeedback('left');
+    });
+
+    skipForwardBtn.addEventListener('click', () => {
+        video.currentTime = Math.min(video.duration || 0, video.currentTime + 10);
+        triggerSeekFeedback('right');
+    });
+
+    // Volume controls
+    function updateVolumeIcon(vol, muted) {
+        let iconName = 'volume-2';
+        if (muted || vol === 0) {
+            iconName = 'volume-x';
+        } else if (vol < 0.3) {
+            iconName = 'volume';
+        } else if (vol < 0.7) {
+            iconName = 'volume-1';
+        }
+        volumeBtn.innerHTML = `<i data-lucide="${iconName}"></i>`;
+        lucide.createIcons({ node: volumeBtn });
+    }
+
+    volumeSlider.addEventListener('input', () => {
+        video.volume = volumeSlider.value;
+        video.muted = (video.volume === 0);
+        playerState.prevVolume = video.volume;
+        updateVolumeIcon(video.volume, video.muted);
+    });
+
+    volumeBtn.addEventListener('click', () => {
+        if (video.muted) {
+            video.muted = false;
+            video.volume = playerState.prevVolume;
+            volumeSlider.value = video.volume;
+        } else {
+            playerState.prevVolume = video.volume;
+            video.muted = true;
+            video.volume = 0;
+            volumeSlider.value = 0;
+        }
+        updateVolumeIcon(video.volume, video.muted);
+    });
+
+    // Progress bar Scrubbing (Clicking and Dragging)
+    function scrub(e) {
+        const rect = progressContainer.getBoundingClientRect();
+        let clientX = e.clientX;
+        if (e.touches && e.touches[0]) {
+            clientX = e.touches[0].clientX;
+        }
+        const position = (clientX - rect.left) / rect.width;
+        const boundedPosition = Math.max(0, Math.min(1, position));
+        
+        progressBarFilled.style.width = `${boundedPosition * 100}%`;
+        progressBarHandle.style.left = `${boundedPosition * 100}%`;
+        currentTimeEl.textContent = formatTime(boundedPosition * (video.duration || 0));
+        
+        return boundedPosition;
+    }
+
+    progressContainer.addEventListener('mousedown', (e) => {
+        playerState.isScrubbing = true;
+        const pos = scrub(e);
+        
+        function onMouseMove(moveEvent) {
+            scrub(moveEvent);
+        }
+        
+        function onMouseUp(upEvent) {
+            const finalPos = scrub(upEvent);
+            video.currentTime = finalPos * (video.duration || 0);
+            playerState.isScrubbing = false;
+            
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        }
+        
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    });
+
+    // Touch events for mobile progress scrubbing
+    progressContainer.addEventListener('touchstart', (e) => {
+        playerState.isScrubbing = true;
+        const pos = scrub(e);
+        
+        function onTouchMove(moveEvent) {
+            scrub(moveEvent);
+        }
+        
+        function onTouchEnd(endEvent) {
+            playerState.isScrubbing = false;
+            const finalPos = parseFloat(progressBarFilled.style.width) / 100;
+            video.currentTime = finalPos * (video.duration || 0);
+            
+            document.removeEventListener('touchmove', onTouchMove);
+            document.removeEventListener('touchend', onTouchEnd);
+        }
+        
+        document.addEventListener('touchmove', onTouchMove);
+        document.addEventListener('touchend', onTouchEnd);
+    });
+
+    // Speed Rate selector
+    speedBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        speedDropdown.classList.toggle('active');
+    });
+
+    document.querySelectorAll('.speed-option').forEach(opt => {
+        opt.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const speed = parseFloat(opt.dataset.speed);
+            video.playbackRate = speed;
+            speedBtn.textContent = `${speed.toFixed(1)}x`;
+            
+            document.querySelectorAll('.speed-option').forEach(o => o.classList.remove('active'));
+            opt.classList.add('active');
+            speedDropdown.classList.remove('active');
+        });
+    });
+
+    document.addEventListener('click', () => {
+        speedDropdown.classList.remove('active');
+    });
+
+    // Fullscreen toggle
+    function toggleFullscreen() {
+        if (!document.fullscreenElement &&
+            !document.mozFullScreenElement &&
+            !document.webkitFullscreenElement &&
+            !document.msFullscreenElement) {
+            
+            // Enter fullscreen
+            if (wrapper.requestFullscreen) {
+                wrapper.requestFullscreen();
+            } else if (wrapper.msRequestFullscreen) {
+                wrapper.msRequestFullscreen();
+            } else if (wrapper.mozRequestFullScreen) {
+                wrapper.mozRequestFullScreen();
+            } else if (wrapper.webkitRequestFullscreen) {
+                wrapper.webkitRequestFullscreen();
+            }
+        } else {
+            // Exit fullscreen
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            } else if (document.msExitFullscreen) {
+                document.msExitFullscreen();
+            } else if (document.mozCancelFullScreen) {
+                document.mozCancelFullScreen();
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            }
+        }
+    }
+
+    fullscreenBtn.addEventListener('click', toggleFullscreen);
+
+    // Watch fullscreen changes to update icon
+    function onFullscreenChange() {
+        const isFS = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement;
+        fullscreenBtn.innerHTML = isFS ? '<i data-lucide="minimize"></i>' : '<i data-lucide="maximize"></i>';
+        lucide.createIcons({ node: fullscreenBtn });
+    }
+
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+    document.addEventListener('mozfullscreenchange', onFullscreenChange);
+
+    // Auto-hide controls and cursor logic
+    function showControls() {
+        wrapper.classList.add('show-controls');
+        wrapper.style.cursor = 'default';
+        resetControlsTimeout();
+    }
+
+    function hideControls() {
+        if (!video.paused && !playerState.isScrubbing) {
+            wrapper.classList.remove('show-controls');
+            wrapper.style.cursor = 'none';
+        }
+    }
+
+    function resetControlsTimeout() {
+        clearTimeout(playerState.controlsTimeout);
+        if (!video.paused) {
+            playerState.controlsTimeout = setTimeout(hideControls, 2500);
+        }
+    }
+
+    wrapper.addEventListener('mousemove', showControls);
+    wrapper.addEventListener('touchstart', showControls);
+
+    // Close buttons (X and back arrow)
+    function closePlayer() {
+        video.pause();
+        video.src = '';
+        
+        // Exit fullscreen if active
+        if (document.fullscreenElement || document.webkitFullscreenElement) {
+            if (document.exitFullscreen) document.exitFullscreen().catch(()=>{});
+        }
+        
+        el.videoPlayerModal.classList.remove('active');
+    }
+
+    el.closePlayerBtn.onclick = closePlayer;
+    if (playerBackBtn) playerBackBtn.onclick = closePlayer;
+
+    // Keyboard Shortcuts (only when player modal is active)
+    document.addEventListener('keydown', (e) => {
+        if (!el.videoPlayerModal.classList.contains('active')) return;
+
+        // Skip shortcut if user is focusing on an input (though shouldn't be possible inside player)
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+        switch (e.key.toLowerCase()) {
+            case ' ':
+            case 'k':
+                e.preventDefault();
+                togglePlay();
+                break;
+            case 'arrowleft':
+            case 'j':
+                e.preventDefault();
+                video.currentTime = Math.max(0, video.currentTime - 10);
+                triggerSeekFeedback('left');
+                showControls();
+                break;
+            case 'arrowright':
+            case 'l':
+                e.preventDefault();
+                video.currentTime = Math.min(video.duration || 0, video.currentTime + 10);
+                triggerSeekFeedback('right');
+                showControls();
+                break;
+            case 'arrowup':
+                e.preventDefault();
+                video.volume = Math.min(1, video.volume + 0.1);
+                volumeSlider.value = video.volume;
+                video.muted = false;
+                updateVolumeIcon(video.volume, video.muted);
+                showControls();
+                break;
+            case 'arrowdown':
+                e.preventDefault();
+                video.volume = Math.max(0, video.volume - 0.1);
+                volumeSlider.value = video.volume;
+                video.muted = (video.volume === 0);
+                updateVolumeIcon(video.volume, video.muted);
+                showControls();
+                break;
+            case 'f':
+                e.preventDefault();
+                toggleFullscreen();
+                break;
+            case 'm':
+                e.preventDefault();
+                volumeBtn.click();
+                showControls();
+                break;
+        }
+    });
+
+    // Default states
+    video.volume = 1;
+    volumeSlider.value = 1;
+    wrapper.classList.add('show-controls');
 }

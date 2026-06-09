@@ -416,13 +416,77 @@
         <!-- ========================================== -->
         <div class="modal-backdrop" id="videoPlayerModal">
             <div class="player-modal-container">
-                <div class="player-header">
-                    <h3 id="playerContentTitle">Reproduzindo...</h3>
-                    <button class="btn-circle" id="closePlayerBtn"><i data-lucide="x"></i></button>
-                </div>
-                <div class="video-container-wrapper">
+                <div class="video-container-wrapper" id="videoWrapper">
                     <!-- Video tag with backglow shadow effect -->
-                    <video id="mainVideoPlayer" controls autoplay crossorigin="anonymous"></video>
+                    <video id="mainVideoPlayer" autoplay crossorigin="anonymous"></video>
+                    
+                    <!-- Integrated Top Header Overlay -->
+                    <div class="custom-player-header">
+                        <div class="player-title-box">
+                            <i data-lucide="chevron-left" class="back-icon" id="playerBackBtn"></i>
+                            <h3 id="playerContentTitle">Reproduzindo...</h3>
+                        </div>
+                        <button class="btn-circle" id="closePlayerBtn"><i data-lucide="x"></i></button>
+                    </div>
+
+                    <!-- Integrated Center play/pause indicator -->
+                    <div class="center-play-indicator" id="centerPlayIndicator">
+                        <i data-lucide="play"></i>
+                    </div>
+
+                    <!-- Seek Feedback Overlays -->
+                    <div class="seek-feedback seek-left" id="seekLeftFeedback">
+                        <i data-lucide="chevrons-left"></i>
+                        <span>-10s</span>
+                    </div>
+                    <div class="seek-feedback seek-right" id="seekRightFeedback">
+                        <i data-lucide="chevrons-right"></i>
+                        <span>+10s</span>
+                    </div>
+                    
+                    <!-- Bottom Custom Control Bar -->
+                    <div class="custom-player-controls">
+                        <!-- Progress bar container -->
+                        <div class="progress-container" id="progressContainer">
+                            <div class="progress-bar-buffered" id="progressBarBuffered"></div>
+                            <div class="progress-bar-filled" id="progressBarFilled"></div>
+                            <div class="progress-bar-handle" id="progressBarHandle"></div>
+                        </div>
+                        
+                        <!-- Controls row -->
+                        <div class="controls-row">
+                            <div class="left-controls">
+                                <button class="control-btn" id="playPauseBtn"><i data-lucide="play"></i></button>
+                                <button class="control-btn" id="skipBackBtn" title="Voltar 10s"><i data-lucide="rotate-ccw"></i></button>
+                                <button class="control-btn" id="skipForwardBtn" title="Avançar 10s"><i data-lucide="rotate-cw"></i></button>
+                                
+                                <div class="volume-container">
+                                    <button class="control-btn" id="volumeBtn"><i data-lucide="volume-2"></i></button>
+                                    <input type="range" class="volume-slider" id="volumeSlider" min="0" max="1" step="0.05" value="1">
+                                </div>
+                                
+                                <span class="time-display">
+                                    <span id="currentTime">00:00</span> / <span id="durationTime">00:00</span>
+                                </span>
+                            </div>
+                            
+                            <div class="right-controls">
+                                <!-- Speed selector -->
+                                <div class="speed-control-container">
+                                    <button class="control-btn" id="speedBtn">1.0x</button>
+                                    <div class="speed-dropdown" id="speedDropdown">
+                                        <div class="speed-option" data-speed="0.5">0.5x</div>
+                                        <div class="speed-option active" data-speed="1.0">1.0x</div>
+                                        <div class="speed-option" data-speed="1.25">1.25x</div>
+                                        <div class="speed-option" data-speed="1.5">1.5x</div>
+                                        <div class="speed-option" data-speed="2.0">2.0x</div>
+                                    </div>
+                                </div>
+                                
+                                <button class="control-btn" id="fullscreenBtn" title="Tela Cheia"><i data-lucide="maximize"></i></button>
+                            </div>
+                        </div>
+                    </div>
                     
                     <div class="player-loader" id="playerLoader">
                         <div class="spinner"></div>

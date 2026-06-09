@@ -1939,3 +1939,392 @@ h1, h2, h3, h4, h5, h6 {
     transform: translateY(-2px);
     box-shadow: 0 5px 15px rgba(99, 102, 241, 0.15);
 }
+
+/* ==================================================== */
+/* DEDICATED STREAMING VIDEO PLAYER CONTROLS            */
+/* ==================================================== */
+
+.video-container-wrapper {
+    position: relative;
+    overflow: hidden;
+    background-color: #000;
+}
+
+/* Integrated Header Overlay */
+.custom-player-header {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0.3) 60%, transparent 100%);
+    padding: 24px 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 10;
+    transform: translateY(-20px);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+}
+
+.player-title-box {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.player-title-box h3 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 500px;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.back-icon {
+    width: 24px;
+    height: 24px;
+    color: #fff;
+    cursor: pointer;
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), color 0.2s;
+}
+
+.back-icon:hover {
+    transform: scale(1.15) translateX(-3px);
+    color: var(--color-accent);
+}
+
+/* Integrated Bottom Controls Panel */
+.custom-player-controls {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.45) 60%, transparent 100%);
+    padding: 35px 30px 20px 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    z-index: 10;
+    transform: translateY(20px);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+}
+
+/* Show controls state */
+.video-container-wrapper.show-controls .custom-player-header,
+.video-container-wrapper.show-controls .custom-player-controls {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Progress bar styling */
+.progress-container {
+    position: relative;
+    height: 4px;
+    width: 100%;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: height 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.progress-container:hover {
+    height: 8px;
+}
+
+.progress-bar-filled {
+    height: 100%;
+    background: linear-gradient(90deg, var(--color-accent) 0%, var(--color-purple) 100%);
+    border-radius: 4px;
+    width: 0%;
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 3;
+}
+
+.progress-bar-buffered {
+    height: 100%;
+    background: rgba(255, 255, 255, 0.25);
+    border-radius: 4px;
+    width: 0%;
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 2;
+}
+
+.progress-bar-handle {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background-color: #fff;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    left: 0%;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 4;
+    box-shadow: 0 0 10px rgba(99, 102, 241, 0.8);
+    transition: opacity 0.2s ease, transform 0.2s;
+}
+
+.progress-container:hover .progress-bar-handle {
+    opacity: 1;
+}
+
+/* Controls buttons and items layout */
+.controls-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.left-controls, .right-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.control-btn {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.8);
+    cursor: pointer;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.control-btn:hover {
+    color: #fff;
+    background-color: rgba(255, 255, 255, 0.1);
+    transform: scale(1.1);
+}
+
+.control-btn:active {
+    transform: scale(0.95);
+}
+
+.control-btn i {
+    width: 20px;
+    height: 20px;
+}
+
+/* Custom Volume control slider */
+.volume-container {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.volume-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 0;
+    opacity: 0;
+    background: rgba(255, 255, 255, 0.2);
+    height: 4px;
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+    transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s;
+}
+
+.volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 5px rgba(0,0,0,0.5);
+}
+
+.volume-slider::-moz-range-thumb {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 5px rgba(0,0,0,0.5);
+    border: none;
+}
+
+.volume-container:hover .volume-slider,
+.volume-slider:focus {
+    width: 70px;
+    opacity: 1;
+}
+
+.time-display {
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.7);
+    margin-left: 10px;
+    font-family: var(--font-heading);
+    letter-spacing: 0.5px;
+}
+
+/* Playback Speed dropdown selector */
+.speed-control-container {
+    position: relative;
+}
+
+.speed-dropdown {
+    position: absolute;
+    bottom: 50px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(15, 18, 40, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    padding: 8px 0;
+    display: none;
+    flex-direction: column;
+    min-width: 80px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
+    z-index: 20;
+    animation: slideUp 0.2s ease-out;
+}
+
+.speed-dropdown.active {
+    display: flex;
+}
+
+.speed-option {
+    font-size: 12px;
+    font-weight: 700;
+    padding: 8px 16px;
+    color: var(--text-secondary);
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.speed-option:hover {
+    color: #fff;
+    background-color: rgba(99, 102, 241, 0.2);
+}
+
+.speed-option.active {
+    color: var(--color-purple);
+    font-weight: 800;
+    background-color: rgba(168, 85, 247, 0.1);
+}
+
+/* Double click visual seeking ripples */
+.seek-feedback {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 35%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 5;
+    transition: opacity 0.3s;
+}
+
+.seek-left {
+    left: 0;
+    background: linear-gradient(90deg, rgba(99, 102, 241, 0.15) 0%, transparent 100%);
+}
+
+.seek-right {
+    right: 0;
+    background: linear-gradient(-90deg, rgba(99, 102, 241, 0.15) 0%, transparent 100%);
+}
+
+.seek-feedback i {
+    width: 44px;
+    height: 44px;
+    color: #fff;
+    margin-bottom: 6px;
+}
+
+.seek-feedback span {
+    font-family: var(--font-heading);
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+}
+
+.seek-feedback.active {
+    animation: ripplePulse 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes ripplePulse {
+    0% {
+        opacity: 0;
+    }
+    40% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+    }
+}
+
+/* Center Play/Pause indicator ripple */
+.center-play-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.6);
+    width: 76px;
+    height: 76px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 6;
+    transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.center-play-indicator i {
+    width: 28px;
+    height: 28px;
+    color: #fff;
+}
+
+.center-play-indicator.active {
+    animation: centerPlayRipple 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes centerPlayRipple {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.6);
+    }
+    40% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.15);
+        box-shadow: 0 0 25px rgba(99, 102, 241, 0.3);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(1.3);
+    }
+}
