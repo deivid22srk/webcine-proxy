@@ -676,19 +676,95 @@ async function loadFeed() {
     el.feedLoader.style.display = 'flex';
     
     try {
-        const res = await apiFetch('/feed?page=1');
-        const feedData = await res.json();
-        const items = feedData.data || [];
-        
-        if (items.length > 0) {
-            const featuredItem = items.find(i => i.backdrop || i.backdrop_titled) || items[0];
-            setupHeroBanner(featuredItem);
-            
-            items.forEach(item => {
-                const card = createMediaCard(item);
-                el.feedGrid.appendChild(card);
-            });
+        // Fetch announcements/feed
+        let feedItems = [];
+        try {
+            const feedRes = await apiFetch('/feed?page=1');
+            const feedData = await feedRes.json();
+            feedItems = feedData.data || [];
+        } catch (e) {
+            console.error('Error fetching feed:', e);
         }
+        
+        // Fetch movies for recommendations
+        let movieItems = [];
+        try {
+            const moviesRes = await apiFetch('/catalog/movies?page=1&per_page=12&sort=recent');
+            const moviesData = await moviesRes.json();
+            movieItems = moviesData.data || [];
+        } catch (e) {
+            console.error('Error fetching catalog movies:', e);
+        }
+
+        // Fetch series for recommendations
+        let seriesItems = [];
+        try {
+            const seriesRes = await apiFetch('/catalog/series?page=1&per_page=12&sort=recent');
+            const seriesData = await seriesRes.json();
+            seriesItems = seriesData.data || [];
+        } catch (e) {
+            console.error('Error fetching catalog series:', e);
+        }
+
+        // Setup Hero Banner from the first movie or series (since they have backdrop images)
+        const allMedia = [...movieItems, ...seriesItems];
+        if (allMedia.length > 0) {
+            const featuredItem = allMedia.find(i => i.backdrop || i.backdrop_titled) || allMedia[0];
+            setupHeroBanner(featuredItem);
+        }
+
+        // Clear and rebuild Home feed container
+        el.feedGrid.innerHTML = '';
+        
+        // Render Movies section
+        if (movieItems.length > 0) {
+            const movieHeader = document.createElement('h2');
+            movieHeader.className = 'section-title';
+            movieHeader.textContent = 'Filmes Recentes';
+            el.feedGrid.appendChild(movieHeader);
+            
+            const movieGrid = document.createElement('div');
+            movieGrid.className = 'media-grid';
+            movieGrid.style.marginBottom = '40px';
+            movieItems.forEach(item => {
+                movieGrid.appendChild(createMediaCard(item));
+            });
+            el.feedGrid.appendChild(movieGrid);
+        }
+
+        // Render Series section
+        if (seriesItems.length > 0) {
+            const seriesHeader = document.createElement('h2');
+            seriesHeader.className = 'section-title';
+            seriesHeader.textContent = 'Séries Recentes';
+            el.feedGrid.appendChild(seriesHeader);
+            
+            const seriesGrid = document.createElement('div');
+            seriesGrid.className = 'media-grid';
+            seriesGrid.style.marginBottom = '40px';
+            seriesItems.forEach(item => {
+                seriesGrid.appendChild(createMediaCard(item));
+            });
+            el.feedGrid.appendChild(seriesGrid);
+        }
+
+        // Render News / Feed Announcements section
+        const newsItems = feedItems.filter(item => item.type === 'text' || item.type === 'video');
+        if (newsItems.length > 0) {
+            const newsHeader = document.createElement('h2');
+            newsHeader.className = 'section-title';
+            newsHeader.textContent = 'Novidades e Comunicados';
+            el.feedGrid.appendChild(newsHeader);
+
+            const newsGrid = document.createElement('div');
+            newsGrid.className = 'media-grid';
+            newsItems.forEach(item => {
+                const card = createNewsCard(item);
+                newsGrid.appendChild(card);
+            });
+            el.feedGrid.appendChild(newsGrid);
+        }
+
     } catch (e) {
         console.error('Error loading feed:', e);
         el.feedGrid.innerHTML = `<div class="no-results"><i data-lucide="alert-triangle"></i> Falha ao carregar conteúdo da API.</div>`;
@@ -696,6 +772,74 @@ async function loadFeed() {
     } finally {
         el.feedLoader.style.display = 'none';
     }
+}
+
+// Create custom card for text news/announcements
+function createNewsCard(item) {
+    const card = document.createElement('div');
+    card.className = 'media-card news-card';
+    
+    const timeStr = item.published_at ? new Date(item.published_at).toLocaleDateString('pt-BR') : '';
+    const bodyText = item.body ? item.body.replace(/\r\n/g, '<br>') : '';
+    const mediaHtml = item.media && item.media[0] ? `<div class="news-media-img" style="margin-top: 10px; border-radius: 8px; overflow: hidden; aspect-ratio: 16/9;"><img src="${item.media[0]}" alt="${item.title}" style="width:100%; height:100%; object-fit:cover;" loading="lazy"></div>` : '';
+
+    card.innerHTML = `
+        <div class="news-card-content" style="padding: 20px; display: flex; flex-direction: column; gap: 12px; height: 100%; min-height: 250px; justify-content: space-between; background: linear-gradient(135deg, rgba(21, 24, 51, 0.6) 0%, rgba(13, 15, 35, 0.4) 100%); border-radius: 16px;">
+            <div class="news-header-box">
+                <span class="badge" style="display: inline-block; padding: 4px 10px; margin-bottom: 12px; font-size: 10px; background-color: rgba(168, 85, 247, 0.2); color: var(--color-purple); border: 1px solid rgba(168, 85, 247, 0.3);">Comunicado</span>
+                <h3 class="card-title" style="white-space: normal; overflow: visible; font-size: 15px; font-weight: 800; line-height: 1.4; color: #fff;">${item.title}</h3>
+                <p class="news-body" style="font-size: 13px; color: var(--text-secondary); margin-top: 8px; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.5;">${item.body || ''}</p>
+            </div>
+            ${mediaHtml}
+            <div class="news-footer" style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-muted); margin-top: auto; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px;">
+                <span>Autor: ${item.author_name || 'Staff'}</span>
+                <span>${timeStr}</span>
+            </div>
+        </div>
+    `;
+
+    card.addEventListener('click', () => {
+        showAnnouncementModal(item);
+    });
+
+    return card;
+}
+
+// Show announcement overlay details
+function showAnnouncementModal(item) {
+    el.seasonsSection.style.display = 'none';
+    el.channelsGrid.innerHTML = '';
+    el.channelsSection.style.display = 'none';
+    
+    el.modalBanner.style.backgroundImage = 'none';
+    el.modalBanner.style.backgroundColor = 'var(--bg-card)';
+    el.modalTypeBadge.textContent = 'Comunicado Oficial';
+    el.modalTitle.textContent = item.title;
+    el.modalSynopsis.innerHTML = `<div style="white-space: pre-wrap; line-height: 1.7; font-size: 15px; color: var(--text-primary);">${item.body || ''}</div>`;
+    el.modalYear.textContent = item.published_at ? new Date(item.published_at).toLocaleDateString('pt-BR') : '';
+    el.modalRating.innerHTML = '';
+    el.modalDuration.textContent = '';
+    el.modalAgeRating.textContent = '';
+    el.modalAgeRating.style.display = 'none';
+    el.modalGenres.innerHTML = '';
+    
+    if (item.media && item.media[0]) {
+        const wrapper = document.createElement('div');
+        wrapper.style.marginTop = '25px';
+        wrapper.style.borderRadius = '12px';
+        wrapper.style.overflow = 'hidden';
+        wrapper.style.border = '1px solid var(--border-glass)';
+        
+        const img = document.createElement('img');
+        img.src = item.media[0];
+        img.style.width = '100%';
+        img.style.display = 'block';
+        wrapper.appendChild(img);
+        
+        el.modalSynopsis.appendChild(wrapper);
+    }
+    
+    el.detailsModal.classList.add('active');
 }
 
 // Setup top hero banner
