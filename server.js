@@ -101,13 +101,14 @@ app.all('/api/*', async (req, res) => {
         logToFile(`[Proxy Request Body]`, req.body);
     }
     
-    // Clona cabeçalhos originais
-    const headers = { ...req.headers };
-    
-    // Remove cabeçalhos de controle local que conflitam ou causam problemas SSL
-    delete headers.host;
-    delete headers.connection;
-    delete headers['content-length'];
+    // Filtra cabeçalhos para enviar apenas o necessário, evitando CSRF e conflitos de cookies do navegador
+    const headers = {};
+    const allowedHeaders = ['content-type', 'accept', 'authorization', 'x-device-id', 'x-profile-id'];
+    for (const h of allowedHeaders) {
+        if (req.headers[h]) {
+            headers[h] = req.headers[h];
+        }
+    }
     
     try {
         const fetchOptions = {
