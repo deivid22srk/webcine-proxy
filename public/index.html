@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CineVS Premium Proxy</title>
+    
+    <!-- Meta SEO -->
+    <meta name="description" content="Assista a filmes, séries e animes sem anúncios de forma fluida através de um proxy premium local do CineVS.">
+    <meta name="theme-color" content="#0a0e1a">
+    
+    <!-- Fonts & Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- App Container -->
+    <div id="app" class="app-container">
+        
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="logo-area">
+                <span class="logo-text"><span class="highlight">CineVS</span>Proxy</span>
+            </div>
+            
+            <nav class="nav-links">
+                <a href="#" class="nav-item active" data-view="home">
+                    <i data-lucide="home"></i> Home
+                </a>
+                <a href="#" class="nav-item" data-view="movies">
+                    <i data-lucide="film"></i> Filmes
+                </a>
+                <a href="#" class="nav-item" data-view="series">
+                    <i data-lucide="tv"></i> Séries
+                </a>
+                <a href="#" class="nav-item" data-view="animes">
+                    <i data-lucide="sparkles"></i> Animes
+                </a>
+            </nav>
+            
+            <!-- Active Profile Section -->
+            <div class="profile-widget">
+                <div class="active-profile-info" id="activeProfileBtn">
+                    <img id="activeProfileAvatar" src="https://urobotsy.com/storage/avatars/disney/44c4d4e8-4f10-4d8d-bc82-42fc085b8aac.png" alt="Avatar">
+                    <div class="name-box">
+                        <span id="activeProfileName">Carregando...</span>
+                        <span class="subtext">Trocar Perfil</span>
+                    </div>
+                    <i data-lucide="chevron-up" class="chevron"></i>
+                </div>
+                
+                <!-- Profile Dropdown -->
+                <div class="profile-dropdown" id="profileDropdown">
+                    <div class="dropdown-header">Escolha seu perfil</div>
+                    <div class="profiles-list" id="dropdownProfilesList">
+                        <!-- Dynamic list of profiles -->
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            
+            <!-- Header Bar -->
+            <header class="top-header">
+                <!-- Search bar -->
+                <div class="search-container">
+                    <i data-lucide="search" class="search-icon"></i>
+                    <input type="text" id="searchInput" placeholder="Pesquisar filmes, séries, animes...">
+                </div>
+                
+                <div class="header-status">
+                    <span class="badge online">Proxy Conectado</span>
+                </div>
+            </header>
+
+            <!-- dynamic view wrappers -->
+            <div class="view-pane" id="viewPane">
+                
+                <!-- 1. HOME VIEW (FEED) -->
+                <div class="view-content active" id="homeView">
+                    <!-- Hero Banner (Featured content) -->
+                    <section class="hero-banner" id="heroBanner">
+                        <div class="hero-overlay"></div>
+                        <div class="hero-content">
+                            <span class="hero-tag">DESTAQUE</span>
+                            <h1 class="hero-title" id="heroTitle">Spider-Noir</h1>
+                            <p class="hero-desc" id="heroDesc">Carregando informações do conteúdo em destaque...</p>
+                            <div class="hero-meta">
+                                <span id="heroYear">2026</span>
+                                <span class="rating" id="heroRating"><i data-lucide="star" class="star-icon"></i> 4.8</span>
+                            </div>
+                            <div class="hero-actions">
+                                <button class="btn btn-primary" id="heroPlayBtn">
+                                    <i data-lucide="play"></i> Assistir Agora
+                                </button>
+                                <button class="btn btn-secondary" id="heroInfoBtn">
+                                    <i data-lucide="info"></i> Mais Informações
+                                </button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Feed Grid List -->
+                    <section class="feed-section">
+                        <h2 class="section-title">Recomendações Recentes</h2>
+                        <div class="media-grid" id="feedGrid">
+                            <!-- Cards dynamically generated -->
+                        </div>
+                        <div class="loader-container" id="feedLoader">
+                            <div class="spinner"></div>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- 2. CATALOG VIEW (Shared for Filmes, Séries, Animes) -->
+                <div class="view-pane-sub" id="catalogView" style="display: none;">
+                    <div class="catalog-header-section">
+                        <h1 class="catalog-title" id="catalogTitleText">Filmes</h1>
+                        
+                        <!-- Catalog Filters -->
+                        <div class="filter-bar">
+                            <div class="filter-group">
+                                <label for="genreSelect">Gênero</label>
+                                <select id="genreSelect">
+                                    <option value="">Todos</option>
+                                    <!-- Dynamic -->
+                                </select>
+                            </div>
+                            
+                            <div class="filter-group">
+                                <label for="yearSelect">Ano</label>
+                                <select id="yearSelect">
+                                    <option value="">Todos</option>
+                                    <!-- Dynamic -->
+                                </select>
+                            </div>
+                            
+                            <div class="filter-group">
+                                <label for="sortSelect">Ordenar por</label>
+                                <select id="sortSelect">
+                                    <option value="recent">Adicionados recentemente</option>
+                                    <option value="views">Mais vistos</option>
+                                    <option value="rating">Melhor avaliados</option>
+                                    <option value="year">Ano de lançamento</option>
+                                    <option value="alphabetical">Ordem alfabética</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="media-grid" id="catalogGrid">
+                        <!-- Catalog cards -->
+                    </div>
+                    
+                    <div class="loader-container" id="catalogLoader" style="display: none;">
+                        <div class="spinner"></div>
+                    </div>
+                    
+                    <!-- Pagination -->
+                    <div class="pagination-container" id="paginationBox">
+                        <button class="btn-circle" id="prevPageBtn" disabled><i data-lucide="chevron-left"></i></button>
+                        <span class="page-indicator" id="pageIndicator">Página 1</span>
+                        <button class="btn-circle" id="nextPageBtn"><i data-lucide="chevron-right"></i></button>
+                    </div>
+                </div>
+
+                <!-- 3. SEARCH RESULTS VIEW -->
+                <div class="view-pane-sub" id="searchView" style="display: none;">
+                    <div class="search-header-section">
+                        <h1>Resultados da Busca</h1>
+                        <p class="search-query-text">Resultados para: <span class="highlight" id="searchQueryWord">""</span></p>
+                    </div>
+                    
+                    <div class="media-grid" id="searchGrid">
+                        <!-- Search cards -->
+                    </div>
+                    <div class="loader-container" id="searchLoader" style="display: none;">
+                        <div class="spinner"></div>
+                    </div>
+                    <div class="no-results" id="noResultsText" style="display: none;">
+                        <i data-lucide="alert-circle"></i> Nenhum resultado encontrado para a pesquisa.
+                    </div>
+                </div>
+
+            </div>
+        </main>
+        
+        <!-- ========================================== -->
+        <!-- MEDIA DETAILS MODAL                        -->
+        <!-- ========================================== -->
+        <div class="modal-backdrop" id="detailsModal">
+            <div class="modal-container">
+                <!-- Close Button -->
+                <button class="modal-close-btn" id="closeModalBtn"><i data-lucide="x"></i></button>
+                
+                <!-- Banner Top -->
+                <div class="modal-banner" id="modalBanner">
+                    <div class="banner-overlay"></div>
+                    <div class="banner-info">
+                        <span class="badge" id="modalTypeBadge">Filme</span>
+                        <h2 class="modal-title" id="modalTitle">Nome do Conteúdo</h2>
+                        <div class="modal-meta-row">
+                            <span class="rating" id="modalRating"><i data-lucide="star" class="star-icon"></i> 4.5</span>
+                            <span id="modalYear">2024</span>
+                            <span id="modalDuration">1h 45m</span>
+                            <span class="badge age-rating" id="modalAgeRating">14</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Detail Info -->
+                <div class="modal-body">
+                    <div class="modal-left">
+                        <p class="modal-synopsis" id="modalSynopsis">Sinopse do filme ou série aqui...</p>
+                        <div class="genres-row" id="modalGenres">
+                            <!-- genres -->
+                        </div>
+                    </div>
+                    
+                    <div class="modal-right">
+                        <!-- Play options container -->
+                        <div class="playback-section">
+                            <h3 class="subsection-title">Reprodução</h3>
+                            
+                            <!-- SEASONS & EPISODES SELECTION (Hidden for Movies) -->
+                            <div class="seasons-container" id="seasonsSection" style="display: none;">
+                                <div class="seasons-selector-wrapper">
+                                    <label for="seasonSelectBox">Temporada</label>
+                                    <select id="seasonSelectBox">
+                                        <!-- Dynamic options -->
+                                    </select>
+                                </div>
+                                <div class="episodes-list" id="episodesList">
+                                    <!-- Dynamic episodes -->
+                                </div>
+                            </div>
+                            
+                            <!-- MOVIE OR SELECTED EPISODE VIDEOS CHANNELS -->
+                            <div class="video-channels-section" id="channelsSection">
+                                <h4 class="channels-title" id="channelsTitleText">Opções de Players</h4>
+                                <div class="channels-grid" id="channelsGrid">
+                                    <!-- Options of audio / premium / locks -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- STREAMING VIDEO MODAL PLAYER               -->
+        <!-- ========================================== -->
+        <div class="modal-backdrop" id="videoPlayerModal">
+            <div class="player-modal-container">
+                <div class="player-header">
+                    <h3 id="playerContentTitle">Reproduzindo...</h3>
+                    <button class="btn-circle" id="closePlayerBtn"><i data-lucide="x"></i></button>
+                </div>
+                <div class="video-container-wrapper">
+                    <!-- Video tag with backglow shadow effect -->
+                    <video id="mainVideoPlayer" controls autoplay crossorigin="anonymous"></video>
+                    
+                    <div class="player-loader" id="playerLoader">
+                        <div class="spinner"></div>
+                        <p>Resolvendo fluxo de streaming via Proxy...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Scripts -->
+    <script src="app.js"></script>
+</body>
+</html>

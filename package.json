@@ -1,0 +1,13 @@
+{
+  "name": "webcine-proxy",
+  "version": "1.0.0",
+  "description": "Proxy for WebCine (webcinevs2.com) with movie/series player interface",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
