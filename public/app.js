@@ -1216,7 +1216,14 @@ function renderChannels(videos, type, mediaId) {
 // Request resolved bypass URL and start video playback
 async function playVideo(type, mediaId, videoId, label) {
     el.playerContentTitle.textContent = `${state.currentMedia.title} (${label})`;
+    
+    // Reset player loader state
     el.playerLoader.style.display = 'flex';
+    el.playerLoader.innerHTML = `
+        <div class="spinner"></div>
+        <p>Resolvendo fluxo de streaming via Proxy...</p>
+    `;
+    
     el.mainVideoPlayer.src = '';
     el.videoPlayerModal.classList.add('active');
     
@@ -1232,7 +1239,21 @@ async function playVideo(type, mediaId, videoId, label) {
         
         el.playerLoader.style.display = 'none';
         el.mainVideoPlayer.src = data.url;
-        el.mainVideoPlayer.play();
+        
+        // Attempt to play, catch autoplay prevention
+        const playPromise = el.mainVideoPlayer.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(error => {
+                console.log("Playback start prevented by browser autoplay policy:", error);
+                el.mainVideoPlayer.pause();
+                // Ensure controls are visible so the user can click play
+                const wrapper = document.getElementById('videoWrapper');
+                if (wrapper) {
+                    wrapper.classList.add('show-controls');
+                    wrapper.style.cursor = 'default';
+                }
+            });
+        }
         
     } catch (e) {
         console.error('Playback fail:', e);
